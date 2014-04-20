@@ -1,5 +1,7 @@
 package paxosrpc
 
+import "command"
+
 type Status int
 
 const (
@@ -11,19 +13,18 @@ const (
 type PrepareArgs struct {
 	SlotIdx int //Command Slot Index
 	N       int
-	//TODO: Design a struct instead of a pure string
-	Command string
+	V	Command
 }
 
 type PrepareReply struct {
-	Status  Status
-	Na      int
-	Command string
+	Status Status
+	Na     int
+	Va     Command
 }
 
 type AcceptArgs struct {
-	N       int
-	Command string
+	N int
+	V Command
 }
 
 type AcceptReply struct {
@@ -31,8 +32,8 @@ type AcceptReply struct {
 }
 
 type CommitArgs struct {
-	N       int
-	Command string
+	N int
+	V Command
 }
 
 type CommitReply struct {
