@@ -13,18 +13,19 @@ const (
 type PrepareArgs struct {
 	SlotIdx int //Command Slot Index
 	N       int
-	V	Command
+	V	command.Command
 }
 
 type PrepareReply struct {
 	Status Status
 	Na     int
-	Va     Command
+	Va     command.Command
 }
 
 type AcceptArgs struct {
+	SlotIdx int //Command Slot Index
 	N int
-	V Command
+	V command.Command
 }
 
 type AcceptReply struct {
@@ -32,8 +33,9 @@ type AcceptReply struct {
 }
 
 type CommitArgs struct {
+	SlotIdx int //Command Slot Index
 	N int
-	V Command
+	V command.Command
 }
 
 type CommitReply struct {

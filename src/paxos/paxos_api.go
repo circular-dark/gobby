@@ -26,6 +26,6 @@ type PaxosNode interface {
 	DoCommit(args *paxosrpc.CommitArgs) error
 
 	//Interface to the application, which tries to replicate command.
-	Replicate(command Command) error
+	Replicate(command *command.Command) error
 
 }
