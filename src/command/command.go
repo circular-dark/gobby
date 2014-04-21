@@ -7,6 +7,7 @@ const (
     Get
     Acquire
     Release
+    Bemaster
 )
 
 type Command struct {
