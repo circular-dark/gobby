@@ -69,7 +69,7 @@ const (
 var nodeslist = []Node{Node{"localhost:9990", 0}, Node{"localhost:9991", 1}, Node{"localhost:9992", 2}}
 
 //remoteHostPort is null now, numNodes always equals 3
-func NewPaxosNode(remoteHostPort string, numNodes, port int, nodeID int) (PaxosNode, error) {
+func NewPaxosNode(remoteHostPort string, numNodes, port int, nodeID int, callback PaxosCallBack) (PaxosNode, error) {
 	node := paxosNode{}
 
 	node.nodeID = nodeID

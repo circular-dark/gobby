@@ -33,3 +33,5 @@ type PaxosNode interface {
 	Pause() error
 
 }
+
+type PaxosCallBack func(int, *command.Command, string)
