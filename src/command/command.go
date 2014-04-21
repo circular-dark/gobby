@@ -1,11 +1,17 @@
 package command
 
-type Command struct {
-	Object string
-	Action string
-	Args   string
-}
+type commandType int
 
-func (c Command) ToString() string {
-  return c.Object + " " + c.Action + " " + c.Args
+const (
+    Put commandType = iota + 1
+    Get
+    Acquire
+    Release
+    Bemaster
+)
+
+type Command struct {
+	Key string
+    Value string
+    Type commandType
 }
