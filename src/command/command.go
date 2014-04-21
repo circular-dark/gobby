@@ -5,3 +5,7 @@ type Command struct {
 	Action string
 	Args   string
 }
+
+func (c Command) ToString() string {
+  return c.Object + " " + c.Action + " " + c.Args
+}

@@ -1,6 +1,6 @@
 package paxosrpc
 
-import "command"
+import "github.com/gobby/src/command"
 
 type Status int
 
