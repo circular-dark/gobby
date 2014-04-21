@@ -13,6 +13,7 @@ import (
     "encoding/binary"
     "errors"
     "os"
+    "sync"
 )
 
 const (
@@ -24,6 +25,7 @@ type Logfiler struct {
     size int64          // number of records in the log
     tailOffset int64    // byte offset for the tail
     readOffset int64    // byte offset for the read pointer
+    mutex *sync.Mutex   // lock for syncronization
 }
 
 // this opens a new empty logfile
@@ -31,6 +33,7 @@ func NewLogger() (*Logfiler, error) {
     l := new(Logfiler)
     l.tailOffset = 8
     l.readOffset = 8
+    l.mutex = new(sync.Mutex)
 
     var f *os.File
     var err error
@@ -52,6 +55,7 @@ func Recover() (*Logfiler, error) {
     l := new(Logfiler)
     l.tailOffset = 8
     l.readOffset = 8
+    l.mutex = new(sync.Mutex)
 
     var f *os.File
     var err error
@@ -84,35 +88,45 @@ func Recover() (*Logfiler, error) {
 }
 
 func (l *Logfiler) AppendRecord(b []byte) error {
+    l.mutex.Lock()
     s := int64(len(b))
     if err := l.writeInt64(s, l.tailOffset); err != nil {
+        l.mutex.Unlock()
         return err
     }
     if _, err := l.file.WriteAt(b, l.tailOffset + 8); err != nil {
+        l.mutex.Unlock()
         return err
     }
     if err := l.writeInt64(l.size + 1, 0); err != nil {
+        l.mutex.Unlock()
         return err
     }
     l.tailOffset += (s + 8)
     l.size++
+    l.mutex.Unlock()
     return nil
 }
 
 func (l *Logfiler) NextRecord() ([]byte, error) {
+    l.mutex.Lock()
     if l.readOffset == l.tailOffset {
+        l.mutex.Unlock()
         return nil, errors.New("reach the end of the log")
     } else {
         var size int64
         var err error
         if size, err = l.readInt64(l.readOffset); err != nil {
+            l.mutex.Unlock()
             return nil, err
         }
         buf := make([]byte, size)
         if _, err := l.file.ReadAt(buf, l.readOffset + 8); err != nil {
+            l.mutex.Unlock()
             return nil, err
         } else {
             l.readOffset += (size + 8)
+            l.mutex.Unlock()
             return buf, nil
         }
     }
