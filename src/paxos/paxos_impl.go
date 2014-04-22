@@ -1,7 +1,6 @@
 package paxos
 
 import (
-    "math"
 	"errors"
 	"fmt"
 	"github.com/gobby/src/command"
@@ -221,7 +220,7 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 		r, _ := <-replychan
         if r.Status == paxosrpc.Committed {
             reply.Status = paxosrpc.Committed
-            reply.V = r.V
+            pn.callback(args.N, r.V)
             return nil
         } else if r.Status == paxosrpc.Accepted {
             numOK++
@@ -273,7 +272,7 @@ func (pn *paxosNode) DoAccept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptR
 		r, _ := <-replychan
         if r.Status == paxosrpc.Committed {
             reply.Status = paxosrpc.Committed
-            reply.V = r.V
+            pn.callback(args.N, r.V)
             return nil
         } else if r.Status == paxosrpc.Reject {
 			numRej++
@@ -378,7 +377,7 @@ func (pn *paxosNode) nextSeqnum(index int) int {
     var seqnum int = 0
     if v, ok := pn.cmdSlots[index]; ok {
         for seqnum < v.Nh {
-            seqnum = int(math.Pow(float64(pn.nodeID), float64(v.seqnum)))
+            seqnum = config.NumNodes * v.seqnum + pn.nodeID
             v.seqnum++
         }
     } else {
