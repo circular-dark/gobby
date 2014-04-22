@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gobby/src/command"
-	"github.com/gobby/src/rpc/paxosrpc"
 	"github.com/gobby/src/config"
+	"github.com/gobby/src/rpc/paxosrpc"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -20,8 +20,8 @@ import (
 
 var (
 	LOGE = log.New(os.Stderr, "ERROR", log.Lmicroseconds|log.Lshortfile)
-	//LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
-	LOGV = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	//LOGV = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	_    = ioutil.Discard
 )
 
@@ -53,6 +53,8 @@ type paxosNode struct {
 	commitedMutex  sync.Mutex
 
 	callback PaxosCallBack
+
+	listener *net.Listener
 }
 
 //Current setting: all settings are static
@@ -89,8 +91,9 @@ func NewPaxosNode(address string, port int, nodeID int, callback PaxosCallBack) 
 	if err != nil {
 		return nil, err
 	}
+	node.listener = &listener
 	rpc.HandleHTTP()
-	go http.Serve(listener, nil)
+	go http.Serve(*node.listener, nil)
 
 	return &node, nil
 }
@@ -205,11 +208,10 @@ func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitRep
 		}
 		pn.commitedCommands[args.SlotIdx] = v.V
 
-		//make a change to the state machine
-		pn.callback(v.Index, v.V)
-
 	}
+	//make a change to the state machine
 	pn.commitedMutex.Unlock()
+	pn.callback(v.Index, v.V)
 	return nil
 }
 
@@ -220,13 +222,14 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 	for _, n := range pn.peers {
 		LOGV.Println("Try to call prepare on " + n.HostPort)
 		go func(peernode Node) {
-			//LOGV.Println("in routie:Try to call prepare on " + n.HostPort)
+			r := paxosrpc.PrepareReply{}
 			peer, err := rpc.DialHTTP("tcp", peernode.HostPort)
 			if err != nil {
 				LOGE.Println("Cannot reach peer " + peernode.HostPort)
+				r.Status = paxosrpc.Reject
+				replychan <- &r
 				return
 			}
-			r := paxosrpc.PrepareReply{}
 			prepareCall := peer.Go("PaxosNode.Prepare", args, &r, nil)
 			select {
 			case _, _ = <-prepareCall.Done:
@@ -273,12 +276,14 @@ func (pn *paxosNode) DoAccept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptR
 
 	for _, n := range pn.peers {
 		go func(peernode Node) {
+			r := paxosrpc.AcceptReply{}
 			peer, err := rpc.DialHTTP("tcp", peernode.HostPort)
 			if err != nil {
 				LOGE.Println("Cannot reach peer " + peernode.HostPort)
+				r.Status = paxosrpc.Reject
+				replychan <- &r
 				return
 			}
-			r := paxosrpc.AcceptReply{}
 			prepareCall := peer.Go("PaxosNode.Accept", args, &r, nil)
 			select {
 			case _, _ = <-prepareCall.Done:
@@ -404,9 +409,33 @@ func (pn *paxosNode) Terminate() error {
 	//close(pn.pushBackChan)
 	//close(pn.pushFrontChan)
 	//close(pn.popChan)
+	return errors.New("not implemented")
+}
+
+//stop rpc server
+func (pn *paxosNode) Pause() error {
+	LOGV.Printf("Node %d stopped listening on tcp:%d.\n", pn.nodeID, pn.port)
+	(*pn.listener).Close()
+	return nil
+	//return errors.New("not implemented")
+}
+
+func (pn *paxosNode) Resume() error {
+	LOGV.Printf("Node %d tried listen on tcp:%d.\n", pn.nodeID, pn.port)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", pn.port))
+	if err != nil {
+		return err
+	}
+	pn.listener = &listener
+	LOGV.Printf("Node %d resume rpc on port:%d.\n", pn.nodeID, pn.port)
+	go http.Serve(*pn.listener, nil)
 	return nil
 }
 
-func (pn *paxosNode) Pause() error {
+func (pn *paxosNode) DumpLog() error {
+	for i, n := range pn.commitedCommands {
+		fmt.Printf("node %d [%d]:%s\n", pn.nodeID, i, n.ToString())
+		//fmt.Printf("node %d [%d] Va:%s Na:%d Nh:%d\n", pn.nodeID, i, n.V.ToString(), n.Na, n.Nh)
+	}
 	return errors.New("not implemented")
 }

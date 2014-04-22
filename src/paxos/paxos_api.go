@@ -27,6 +27,20 @@ type PaxosNode interface {
 	//Interface to the application, which tries to replicate command.
 	Replicate(command *command.Command) error
 
+	//For testing
+	//Pause the Node, it does not receive any rpc calls. But it is still able to
+	//call other node. So it is the tester's reposibility to make sure not to call
+	//others so that the tester can simulate the network error for this node.
+	Pause() error
+	Resume() error
+
+	//Kill the Node, then we can recover the state with the log on disk.
+	//But it is a SECOND-TIER object.
+	Terminate() error
+
+	//Print commited logs
+	DumpLog() error
+
 }
 
 type PaxosCallBack func(int, command.Command)

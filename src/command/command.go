@@ -3,11 +3,13 @@ package command
 type commandType int
 
 const (
-    Put commandType = iota + 1
+    Null commandType = iota
+    Put
     Get
     Acquire
     Release
     Bemaster
+    NOP
 )
 
 type Command struct {
