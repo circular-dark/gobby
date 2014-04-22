@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"github.com/gobby/src/command"
 	"github.com/gobby/src/rpc/paxosrpc"
-	"github.com/gobby/src/src/config"
+	"github.com/gobby/src/config"
 	"io/ioutil"
 	"log"
-	"math"
 	"math/rand"
 	"net"
 	"net/http"
@@ -21,7 +20,8 @@ import (
 
 var (
 	LOGE = log.New(os.Stderr, "ERROR", log.Lmicroseconds|log.Lshortfile)
-	LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	//LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	LOGV = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	_    = ioutil.Discard
 )
 
@@ -66,13 +66,13 @@ func NewPaxosNode(address string, port int, nodeID int, callback PaxosCallBack) 
 	node.addrport = "localhost:" + strconv.Itoa(port)
 	node.callback = callback
 
-	node.peers = make([]Node, 0, numNodes)
+	node.numNodes = len(config.Nodes)
+	node.peers = make([]Node, 0, node.numNodes)
 	for _, n := range config.Nodes {
-		n1 := Node{n.Address + fmt.Sprintf(":%d", port), NodeID}
-		node.peers = append(node.peers, n)
-		LOGV.Println(n.HostPort)
+		n1 := Node{n.Address + fmt.Sprintf(":%d", n.Port), n.NodeID}
+		node.peers = append(node.peers, n1)
+		LOGV.Println(n1.HostPort)
 	}
-	node.numNodes = len(node.peers)
 
 	//node.pendingCommands = list.New()
 	node.commitedCommands = make([]command.Command, 0)
@@ -236,6 +236,7 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 				r.Status = paxosrpc.Reject
 				replychan <- &r
 			}
+			peer.Close()
 		}(n)
 	}
 
@@ -287,6 +288,7 @@ func (pn *paxosNode) DoAccept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptR
 				r.Status = paxosrpc.Reject
 				replychan <- &r
 			}
+			peer.Close()
 		}(n)
 	}
 
@@ -330,6 +332,7 @@ func (pn *paxosNode) DoCommit(args *paxosrpc.CommitArgs) error {
 				//r.Status = paxosrpc.Reject
 				//replychan <- r
 			}
+			peer.Close()
 		}(n)
 	}
 	return nil
@@ -398,8 +401,8 @@ func (pn *paxosNode) DoReplicate(command *command.Command, i int) bool {
 }
 
 func (pn *paxosNode) Terminate() error {
-	close(pn.pushBackChan)
-	close(pn.pushFrontChan)
+	//close(pn.pushBackChan)
+	//close(pn.pushFrontChan)
 	//close(pn.popChan)
 	return nil
 }
