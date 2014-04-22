@@ -1,13 +1,14 @@
 package paxos
 
 import (
-	//"container/list"
 	"errors"
 	"fmt"
 	"github.com/gobby/src/command"
 	"github.com/gobby/src/rpc/paxosrpc"
+	"github.com/gobby/src/src/config"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"net"
 	"net/http"
@@ -48,41 +49,34 @@ type paxosNode struct {
 	tempSlots  map[int]IndexCommand //CommandSlotIndex -> Na
 	maxSlotIdx int
 
-	pushBackChan  chan *command.Command
-	pushFrontChan chan *command.Command
-	popChan       chan *command.Command
-	callback      chan *IndexCommand
-
 	tempSlotsMutex sync.Mutex
 	commitedMutex  sync.Mutex
+
+	callback PaxosCallBack
 }
 
 //Current setting: all settings are static
-//TODO:When the basic logic has been implemented, we can consider about a dynamic setting
-var nodeslist = []Node{Node{"localhost:9990", 0}, Node{"localhost:9991", 1}, Node{"localhost:9992", 2}}
 
 //remoteHostPort is null now, numNodes always equals 3
-func NewPaxosNode(remoteHostPort string, numNodes, port int, nodeID int, callback chan *IndexCommand) (PaxosNode, error) {
+func NewPaxosNode(address string, port int, nodeID int, callback PaxosCallBack) (PaxosNode, error) {
 	node := paxosNode{}
 
 	node.nodeID = nodeID
 	node.port = port
-	node.numNodes = numNodes
 	node.addrport = "localhost:" + strconv.Itoa(port)
 	node.callback = callback
 
 	node.peers = make([]Node, 0, numNodes)
-	for _, n := range nodeslist {
+	for _, n := range config.Nodes {
+		n1 := Node{n.Address + fmt.Sprintf(":%d", port), NodeID}
 		node.peers = append(node.peers, n)
 		LOGV.Println(n.HostPort)
 	}
+	node.numNodes = len(node.peers)
 
 	//node.pendingCommands = list.New()
 	node.commitedCommands = make([]command.Command, 0)
 	node.tempSlots = make(map[int]IndexCommand)
-	node.pushBackChan = make(chan *command.Command)
-	node.pushFrontChan = make(chan *command.Command)
-	node.popChan = make(chan *command.Command)
 
 	//rpc
 	LOGV.Printf("Node %d tried listen on tcp:%d.\n", nodeID, port)
@@ -212,7 +206,7 @@ func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitRep
 		pn.commitedCommands[args.SlotIdx] = v.V
 
 		//make a change to the state machine
-		pn.callback <- &v
+		pn.callback(v.Index, v.V)
 
 	}
 	pn.commitedMutex.Unlock()
