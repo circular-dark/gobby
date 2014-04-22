@@ -18,6 +18,10 @@ import (
 	"time"
 )
 
+const (
+    ConnRetryLimit = 3
+)
+
 var (
 	LOGE = log.New(os.Stderr, "ERROR", log.Lmicroseconds|log.Lshortfile)
 	LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
@@ -38,7 +42,8 @@ type paxosNode struct {
 	nodeID   int
     port     int
 	addrport string
-	tempSlots  map[int]*IndexCommand //CommandSlotIndex -> Na
+	cmdSlots  map[int]*IndexCommand
+    peerConns map[int]*rpc.Client
 	nextIndex int
 	callback  PaxosCallBack
 	lock  sync.Mutex
@@ -51,8 +56,8 @@ func NewPaxosNode(address string,  port int, nodeID int, callback PaxosCallBack)
 	node.port = port
 	node.addrport = address + strconv.Itoa(port)
 	node.callback = callback
-
-	node.tempSlots = make(map[int]*IndexCommand)
+	node.cmdSlots = make(map[int]*IndexCommand)
+    node.peerConns = make(map[int]*rpc.Client)
     node.nextIndex = 0
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
@@ -69,9 +74,27 @@ func NewPaxosNode(address string,  port int, nodeID int, callback PaxosCallBack)
 	return node, nil
 }
 
+func (pn *paxosNode) GetConns() {
+    pn.lock.Lock()
+    for p, n := range config.Nodes {
+        if conn, ok := pn.peerConns[p]; !ok || conn == nil {
+            hostport := n.Address + ":" + strconv.Itoa(n.Port)
+            for i := 0; i < ConnRetryLimit; i++ {
+                if peer, err := rpc.DialHTTP("tcp", hostport); err == nil {
+                    pn.peerConns[p] = peer
+                    break
+                } else {
+                    pn.peerConns[p] = nil
+                }
+            }
+        }
+    }
+    pn.lock.Unlock()
+}
+
 func (pn *paxosNode) Prepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply) error {
 	pn.lock.Lock()
-	v, ok := pn.tempSlots[args.SlotIdx]
+	v, ok := pn.cmdSlots[args.SlotIdx]
 	if ok {
         if v.isCommitted {
             reply.Status = paxosrpc.Committed
@@ -97,7 +120,7 @@ func (pn *paxosNode) Prepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepare
             isCommitted: false,
             seqnum: 1,
         }
-        pn.tempSlots[args.SlotIdx] = ic
+        pn.cmdSlots[args.SlotIdx] = ic
         reply.Status = paxosrpc.OK
     }
 	pn.lock.Unlock()
@@ -106,7 +129,7 @@ func (pn *paxosNode) Prepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepare
 
 func (pn *paxosNode) Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply) error {
 	pn.lock.Lock()
-	v, ok := pn.tempSlots[args.SlotIdx]
+	v, ok := pn.cmdSlots[args.SlotIdx]
 	if ok {
         if v.isCommitted {
             reply.Status = paxosrpc.Committed
@@ -134,7 +157,7 @@ func (pn *paxosNode) Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptRep
             isCommitted: false,
             seqnum: 1,
         }
-		pn.tempSlots[args.SlotIdx] = ic
+		pn.cmdSlots[args.SlotIdx] = ic
 
 		reply.Status = paxosrpc.OK
 	}
@@ -143,7 +166,7 @@ func (pn *paxosNode) Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptRep
 }
 
 func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply) error {
-	v, ok := pn.tempSlots[args.SlotIdx]
+	v, ok := pn.cmdSlots[args.SlotIdx]
 	pn.lock.Lock()
 	if ok {
         if v.isCommitted {
@@ -163,7 +186,7 @@ func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitRep
             isCommitted: true,
             seqnum: 1,
         }
-        pn.tempSlots[args.SlotIdx] = ic
+        pn.cmdSlots[args.SlotIdx] = ic
 	}
 	pn.lock.Unlock()
 	return nil
@@ -172,24 +195,23 @@ func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitRep
 func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply) error {
 	replychan := make(chan *paxosrpc.PrepareReply, config.NumNodes)
 
-	for _, n := range config.Nodes {
-		go func(n config.Node) {
-            hostport := n.Address + ":" + strconv.Itoa(n.Port)
-			peer, err := rpc.DialHTTP("tcp", hostport)
-			if err != nil {
-				LOGE.Println("Cannot reach peer " + hostport)
-				return
-			}
-			r := paxosrpc.PrepareReply{}
-			prepareCall := peer.Go("PaxosNode.Prepare", args, &r, nil)
-			select {
-			case _, _ = <-prepareCall.Done:
-				replychan <- &r
-			case _ = <-time.After(time.Second):
+	for _, conn := range pn.peerConns {
+		go func(c *rpc.Client) {
+			r := new(paxosrpc.PrepareReply)
+            if c == nil {
 				r.Status = paxosrpc.Reject
-				replychan <- &r
-			}
-		}(n)
+                replychan <- r
+            } else {
+                prepareCall := c.Go("PaxosNode.Prepare", args, &r, nil)
+                select {
+                case _, _ = <-prepareCall.Done:
+                    replychan <- r
+                case _ = <-time.After(time.Second):
+                    r.Status = paxosrpc.Reject
+                    replychan <- r
+                }
+            }
+		}(conn)
 	}
 
 	numOK := 0
@@ -226,24 +248,23 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 func (pn *paxosNode) DoAccept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply) error {
 	replychan := make(chan *paxosrpc.AcceptReply, config.NumNodes)
 
-	for _, n := range config.Nodes {
-		go func(n config.Node) {
-            hostport := n.Address + ":" + strconv.Itoa(n.Port)
-			peer, err := rpc.DialHTTP("tcp", hostport)
-			if err != nil {
-				LOGE.Println("Cannot reach peer " + hostport)
-				return
-			}
-			r := paxosrpc.AcceptReply{}
-			prepareCall := peer.Go("PaxosNode.Accept", args, &r, nil)
-			select {
-			case _, _ = <-prepareCall.Done:
-				replychan <- &r
-			case _ = <-time.After(time.Second):
+	for _, conn := range pn.peerConns {
+		go func(c *rpc.Client) {
+			r := new(paxosrpc.AcceptReply)
+            if c == nil {
 				r.Status = paxosrpc.Reject
-				replychan <- &r
-			}
-		}(n)
+                replychan <- r
+            } else {
+                prepareCall := c.Go("PaxosNode.Accept", args, &r, nil)
+                select {
+                case _, _ = <-prepareCall.Done:
+                    replychan <- r
+                case _ = <-time.After(time.Second):
+                    r.Status = paxosrpc.Reject
+                    replychan <- r
+                }
+            }
+		}(conn)
 	}
 
 	numOK := 0
@@ -271,21 +292,17 @@ func (pn *paxosNode) DoAccept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptR
 }
 
 func (pn *paxosNode) DoCommit(args *paxosrpc.CommitArgs) error {
-	for _, n := range config.Nodes {
-		go func(n config.Node) {
-            hostport := n.Address + ":" + strconv.Itoa(n.Port)
-			peer, err := rpc.DialHTTP("tcp", hostport)
-			if err != nil {
-				LOGE.Println("Cannot reach peer " + hostport)
-				return
-			}
-			prepareCall := peer.Go("PaxosNode.Commit", args, nil, nil)
-			select {
-			case _, _ = <-prepareCall.Done:
-			case _ = <-time.After(time.Second):
-			}
-		}(n)
-	}
+	for _, conn := range pn.peerConns {
+		go func(c *rpc.Client) {
+            if c != nil {
+                prepareCall := c.Go("PaxosNode.Commit", args, nil, nil)
+                select {
+                case _, _ = <-prepareCall.Done:
+                case _ = <-time.After(time.Second):
+                }
+            }
+		}(conn)
+    }
 	return nil
 }
 
@@ -304,7 +321,7 @@ func (pn *paxosNode) doReplicate(command *command.Command) bool {
     pn.lock.Lock()
     index := pn.nextIndex
     for {
-        if v, ok := pn.tempSlots[index]; ok && v.isCommitted {
+        if v, ok := pn.cmdSlots[index]; ok && v.isCommitted {
             index++
         } else {
             pn.nextIndex = index + 1
@@ -359,7 +376,7 @@ func (pn *paxosNode) doReplicate(command *command.Command) bool {
 func (pn *paxosNode) nextSeqnum(index int) int {
     pn.lock.Lock()
     var seqnum int = 0
-    if v, ok := pn.tempSlots[index]; ok {
+    if v, ok := pn.cmdSlots[index]; ok {
         for seqnum < v.Nh {
             seqnum = int(math.Pow(float64(pn.nodeID), float64(v.seqnum)))
             v.seqnum++

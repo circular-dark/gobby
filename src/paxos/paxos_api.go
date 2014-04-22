@@ -4,6 +4,9 @@ import "github.com/gobby/src/rpc/paxosrpc"
 import "github.com/gobby/src/command"
 
 type PaxosNode interface {
+
+    GetConns()
+
 	//Paxos protocal prepare rpc, called by proposer
 	Prepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply) error
 
