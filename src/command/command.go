@@ -7,7 +7,7 @@ const (
     Get
     Acquire
     Release
-    Bemaster
+    NOP
 )
 
 type Command struct {
@@ -27,8 +27,8 @@ func (c Command) ToString() string {
         s = "Acquire"
     case Release:
         s = "Release"
-    case Bemaster:
-        s = "Bemaster"
+    case NOP:
+        s = "NOP"
     }
     s += " " + c.Key + " " + c.Value
     return s

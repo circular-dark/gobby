@@ -1,11 +1,16 @@
 package config
 
+type Node struct {
+	Address string
+    Port    int
+	NodeID  int
+}
+
 var (
-    Hostports = [5]string{
-        "127.0.0.1:54321",
-        "127.0.0.1:54322",
-        "127.0.0.1:54323",
-        "127.0.0.1:54324",
-        "127.0.0.1:54325",
+    NumNodes = 3
+    Nodes = [3]Node{
+        Node{"127.0.0.1", 54322, 2},
+        Node{"127.0.0.1", 54323, 3},
+        Node{"127.0.0.1", 54324, 4},
     }
 )

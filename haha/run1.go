@@ -1,13 +1,32 @@
 package main
 
-import "github.com/gobby/src/paxos"
+import (
+    "fmt"
+    "time"
+    "github.com/gobby/src/paxos"
+    "github.com/gobby/src/config"
+    "github.com/gobby/src/command"
+)
+
+const (
+    nid = 0
+)
+
+func fakecallback(index int, c command.Command) {
+    fmt.Printf("\n%d's index %d is %s\n", nid, index, c.ToString())
+}
 
 func main() {
-  callback := make(chan *paxos.IndexCommand)
-  _, err := paxos.NewPaxosNode("", 3, 9990,0,callback)
-  if err!=nil{
-    paxos.LOGE.Println(err)
-  } else {
-    _=<-callback
-  }
+    n1, err := paxos.NewPaxosNode(config.Nodes[nid].Address,
+                                  config.Nodes[nid].Port,
+                                  config.Nodes[nid].NodeID,
+                                  fakecallback)
+    if n1 == nil {
+        fmt.Println("Cannot start node.\n")
+        fmt.Println(err)
+        return
+    }
+    /* c := command.Command{"333", "4444", command.Put} */
+    /* n1.Replicate(&c) */
+    time.Sleep(15 * time.Second)
 }

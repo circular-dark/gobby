@@ -5,35 +5,37 @@ import "github.com/gobby/src/command"
 type Status int
 
 const (
-	OK      Status = iota + 1 //The RPC was a success
-	Reject                    //The RPC was a rejection
-	Existed                   //The RPC was Prepare-OK, but we have commited a value in the slot
+	OK    Status = iota + 1
+	Reject
+    Accepted
+    Committed
 )
 
 type PrepareArgs struct {
-	SlotIdx int //Command Slot Index
+	SlotIdx int
 	N       int
-	V	command.Command
 }
 
 type PrepareReply struct {
 	Status Status
-	Na     int
-	Va     command.Command
+	N     int
+	V     command.Command
 }
 
 type AcceptArgs struct {
-	SlotIdx int //Command Slot Index
+	SlotIdx int
 	N int
 	V command.Command
 }
 
 type AcceptReply struct {
 	Status Status
+	N int
+	V command.Command
 }
 
 type CommitArgs struct {
-	SlotIdx int //Command Slot Index
+	SlotIdx int
 	N int
 	V command.Command
 }

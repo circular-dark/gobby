@@ -11,7 +11,6 @@ type PaxosNode interface {
 	Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply) error
 
 	//Paxos protocal commit rpc, called by proposer
-	CommitAndReply(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply) error
 	Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply) error
 
 	//The proposer calles this function, it will not return
@@ -27,11 +26,6 @@ type PaxosNode interface {
 
 	//Interface to the application, which tries to replicate command.
 	Replicate(command *command.Command) error
-
-	Terminate() error
-
-	Pause() error
-
 }
 
-type PaxosCallBack func(int, *command.Command, string)
+type PaxosCallBack func(int, command.Command)
