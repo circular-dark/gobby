@@ -303,7 +303,14 @@ func (pn *paxosNode) doReplicate(command *command.Command) bool {
     // getting the next unused index
     pn.lock.Lock()
     index := pn.nextIndex
-    for v, ok := pn.tempSlots[index]; ok && v.isCommitted; index++ { }
+    for {
+        if v, ok := pn.tempSlots[index]; ok && v.isCommitted {
+            index++
+        } else {
+            pn.nextIndex = index + 1
+            break
+        }
+    }
     pn.lock.Unlock()
 
 	// Prepare phase
