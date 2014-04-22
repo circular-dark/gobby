@@ -1,7 +1,7 @@
 package paxos
 
 import (
-	"container/list"
+	//"container/list"
 	"errors"
 	"fmt"
 	"github.com/gobby/src/command"
@@ -42,14 +42,11 @@ type paxosNode struct {
 	nodeID, port, numNodes int
 	addrport               string
 
-	peers            []Node //including itself
-	pendingCommands  *list.List
+	peers            []Node            //including itself
 	commitedCommands []command.Command //Log in memory
 
 	tempSlots  map[int]IndexCommand //CommandSlotIndex -> Na
 	maxSlotIdx int
-
-	//stateMachine *StateMachine //A pointer to the real state machine
 
 	pushBackChan  chan *command.Command
 	pushFrontChan chan *command.Command
@@ -62,15 +59,10 @@ type paxosNode struct {
 
 //Current setting: all settings are static
 //TODO:When the basic logic has been implemented, we can consider about a dynamic setting
-const (
-	totalnum int = 3
-)
-
-//var nodeslist = []string{"localhost:9990", "localhost:9991", "localhost:9992"}
 var nodeslist = []Node{Node{"localhost:9990", 0}, Node{"localhost:9991", 1}, Node{"localhost:9992", 2}}
 
 //remoteHostPort is null now, numNodes always equals 3
-func NewPaxosNode(remoteHostPort string, numNodes, port int, nodeID int, callback PaxosCallBack) (PaxosNode, error) {
+func NewPaxosNode(remoteHostPort string, numNodes, port int, nodeID int, callback chan *IndexCommand) (PaxosNode, error) {
 	node := paxosNode{}
 
 	node.nodeID = nodeID
@@ -85,14 +77,12 @@ func NewPaxosNode(remoteHostPort string, numNodes, port int, nodeID int, callbac
 		LOGV.Println(n.HostPort)
 	}
 
-	node.pendingCommands = list.New()
+	//node.pendingCommands = list.New()
 	node.commitedCommands = make([]command.Command, 0)
 	node.tempSlots = make(map[int]IndexCommand)
 	node.pushBackChan = make(chan *command.Command)
 	node.pushFrontChan = make(chan *command.Command)
 	node.popChan = make(chan *command.Command)
-
-	//stateMachine = nil
 
 	//rpc
 	LOGV.Printf("Node %d tried listen on tcp:%d.\n", nodeID, port)
@@ -107,10 +97,6 @@ func NewPaxosNode(remoteHostPort string, numNodes, port int, nodeID int, callbac
 	}
 	rpc.HandleHTTP()
 	go http.Serve(listener, nil)
-
-	//list
-	go pendingListHandler(&node)
-	go replicateHandler(&node)
 
 	return &node, nil
 }
@@ -139,7 +125,7 @@ func (pn *paxosNode) Prepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepare
 				ic.Na = args.N
 				ic.Nh = args.N
 				//ic.V = args.V
-				ic.V.Action = "nop"
+				//ic.V.Action = "nop"
 				ic.isAccepted = false
 				ic.isCommited = false
 				pn.tempSlots[args.SlotIdx] = ic
@@ -155,7 +141,7 @@ func (pn *paxosNode) Prepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepare
 		ic.Na = args.N
 		ic.Nh = args.N
 		//ic.V = args.V
-		ic.V.Action = "nop"
+		//ic.V.Action = "nop"
 		ic.isAccepted = false
 		ic.isCommited = false
 		pn.tempSlots[args.SlotIdx] = ic
@@ -210,11 +196,6 @@ func (pn *paxosNode) Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptRep
 	//return errors.New("not implemented")
 }
 
-//We do not use this!!!
-func (pn *paxosNode) CommitAndReply(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply) error {
-	return errors.New("not implemented")
-}
-
 func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply) error {
 	LOGV.Printf("node %d OnCommit:%d %s %d\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N)
 	v, ok := pn.tempSlots[args.SlotIdx]
@@ -235,7 +216,6 @@ func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitRep
 
 	}
 	pn.commitedMutex.Unlock()
-	//return errors.New("Not exist!")
 	return nil
 }
 
@@ -363,35 +343,28 @@ func (pn *paxosNode) DoCommit(args *paxosrpc.CommitArgs) error {
 }
 
 func (pn *paxosNode) Replicate(command *command.Command) error {
-	//Put command into the pendingCommand
-	//pn.pendingCommands.PushBack(command)
-	pn.pushBackChan <- command
+	i := 1
+	for success := pn.DoReplicate(command, i); !success; {
+		LOGV.Println("Last Paxos is not success, waiting to try again...")
+		time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
+		LOGV.Println("Last Paxos is not success, try again...")
+		i++
+		success = pn.DoReplicate(command, i)
+
+	}
 	return nil
-	//return errors.New("not implemented")
 }
 
-func (pn *paxosNode) DoReplicate(command *command.Command) bool {
+func (pn *paxosNode) DoReplicate(command *command.Command, i int) bool {
 	//Prepare
 	prepareArgs := paxosrpc.PrepareArgs{}
-	//prepareArgs.SlotIdx = pn.maxSlotIdx
-	//pn.maxSlotIdx++
 	prepareArgs.SlotIdx = len(pn.commitedCommands)
-	prepareArgs.N = pn.nodeID
+	prepareArgs.N = pn.nodeID + i*pn.numNodes
 	prepareArgs.V = *command
 
 	prepareReply := paxosrpc.PrepareReply{}
 	prepareReply.Status = paxosrpc.Reject
 
-	/*for prepareReply.Status != paxosrpc.Reject {
-	  pn.doPrepare(&prepareArgs, &prepareReply)
-	  if prepareReply != paxosrpc.Reject {
-
-	  } else if{
-	    prepareArgs.
-	  } else {
-
-	  }
-	}*/
 	pn.DoPrepare(&prepareArgs, &prepareReply)
 	if prepareReply.Status == paxosrpc.Reject {
 		return false
@@ -428,58 +401,6 @@ func (pn *paxosNode) DoReplicate(command *command.Command) bool {
 	} else {
 		return true
 	}
-}
-
-func pendingListHandler(pn *paxosNode) {
-	var popChan chan *command.Command
-	var p *command.Command
-	for {
-		if pn.pendingCommands.Len() > 0 {
-			popChan = pn.popChan
-			p = pn.pendingCommands.Front().Value.(*command.Command)
-			pn.pendingCommands.Remove(pn.pendingCommands.Front())
-		} else {
-			popChan = nil
-			p = nil
-		}
-		select {
-		case c, ok := <-pn.pushBackChan:
-			if !ok {
-				break
-			}
-			pn.pendingCommands.PushBack(c)
-			LOGV.Printf("Get one command:%s\n", c.ToString())
-		case c, ok := <-pn.pushFrontChan:
-			if !ok {
-				break
-			}
-			pn.pendingCommands.PushFront(c)
-		case popChan <- p:
-			LOGV.Printf("Send one command to replacteHandler:%s\n", p.ToString())
-		}
-	}
-	close(pn.popChan)
-}
-
-func replicateHandler(pn *paxosNode) {
-	for {
-		v, ok := <-pn.popChan
-		if !ok {
-			break
-		} else {
-			success := pn.DoReplicate(v)
-			if !success {
-				LOGV.Printf("Paxos failes this time, wait for a time and try later.\n")
-				//Wait for a random time
-				time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
-				pn.pushFrontChan <- v
-			}
-		}
-	}
-}
-
-func (pn *paxosNode) CatchUp() {
-
 }
 
 func (pn *paxosNode) Terminate() error {

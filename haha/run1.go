@@ -1,6 +1,7 @@
 package main
 
 import "github.com/gobby/src/paxos"
+import "fmt"
 
 func main() {
   callback := make(chan *paxos.IndexCommand)
@@ -8,6 +9,11 @@ func main() {
   if err!=nil{
     paxos.LOGE.Println(err)
   } else {
-    _=<-callback
+    for {
+      c,ok:=<-callback
+      if ok {
+	fmt.Println("App get "+c.V.ToString())
+      }
+    }
   }
 }

@@ -11,7 +11,6 @@ type PaxosNode interface {
 	Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply) error
 
 	//Paxos protocal commit rpc, called by proposer
-	CommitAndReply(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply) error
 	Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply) error
 
 	//The proposer calles this function, it will not return
