@@ -162,7 +162,7 @@ func (pn *paxosNode) Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptRep
 	LOGV.Printf("node %d OnAccept:%d %s %d\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N)
 	pn.tempSlotsMutex.Lock()
 	v, ok := pn.tempSlots[args.SlotIdx]
-	if ok && args.N <= v.Nh {
+	if ok && args.N >= v.Nh {
 		/*if v.isAccepted || v.isCommited { //accepted or commited state
 			v.Nh = args.N
 			reply.Status = paxosrpc.OK
