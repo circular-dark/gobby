@@ -32,4 +32,5 @@ func main() {
         n3.Replicate(&c)
     }
     time.Sleep(60 * time.Second)
+    n3.DumpLog()
 }

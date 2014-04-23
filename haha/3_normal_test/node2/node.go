@@ -32,4 +32,5 @@ func main() {
         n1.Replicate(&c)
     }
     time.Sleep(60 * time.Second)
+    n1.DumpLog()
 }

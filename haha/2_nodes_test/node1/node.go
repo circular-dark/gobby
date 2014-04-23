@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	nid = 2
+	nid = 0
 )
 
 var done = make(chan struct{})
