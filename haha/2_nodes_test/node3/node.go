@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+    "strconv"
 	"github.com/gobby/src/command"
 	"github.com/gobby/src/config"
 	"github.com/gobby/src/paxos"
@@ -9,7 +10,7 @@ import (
 )
 
 const (
-	nid = 1
+	nid = 2
 )
 
 var done = make(chan struct{})
@@ -32,7 +33,7 @@ func main() {
 	}
 	go func() {
 		for i := 0; i < 2; i++ {
-			c := command.Command{"777", "888", command.Put}
+			c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put}
 			n3.Replicate(&c)
 		}
 	}()
@@ -49,5 +50,6 @@ func main() {
 
 	if res == 4 {
 		fmt.Printf("\n%d receive all commands\n", nid)
+        n3.DumpLog()
 	}
 }

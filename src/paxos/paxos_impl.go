@@ -492,9 +492,19 @@ func (pn *paxosNode) Resume() error {
 }
 
 func (pn *paxosNode) DumpLog() error {
-	for i, n := range pn.commitedCommands {
-		fmt.Printf("node %d [%d]:%s\n", pn.nodeID, i, n.ToString())
-		//fmt.Printf("node %d [%d] Va:%s Na:%d Nh:%d\n", pn.nodeID, i, n.V.ToString(), n.Na, n.Nh)
-	}
-	return errors.New("not implemented")
+	LOGV.Printf("node %d start dumping log...", pn.nodeID)
+    logname := "dumplog_" + strconv.Itoa(pn.nodeID)
+    if f, err := os.Create(logname); err == nil {
+        for i, n := range pn.commitedCommands {
+            s := fmt.Sprintf("%d: %s\n", i, n.ToString())
+            if _, err = f.WriteString(s); err != nil {
+                return err
+            }
+        }
+        f.Close()
+        LOGV.Printf("node %d finish dumping log...", pn.nodeID)
+        return nil
+    } else {
+        return err
+    }
 }
