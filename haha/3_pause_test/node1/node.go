@@ -31,9 +31,6 @@ func main() {
 		return
 	}
 	go func() {
-		for i := 0; i < 2; i++ {
-			//c := command.Command{"111", "222", command.Put}
-			//n3.Replicate(&c)
 			fmt.Println("Pause node.\n")
 			err = n3.Pause()
 			if err != nil {
@@ -49,11 +46,12 @@ func main() {
 				fmt.Println(err)
 				return
 			}
-		}
+			c := command.Command{"111", "222", command.Put}
+			n3.Replicate(&c)
 	}()
 
 	res := 0
-	for res < 4 {
+	for res < 5 {
 		_, ok := <-done
 		if ok {
 			res++
@@ -62,7 +60,7 @@ func main() {
 		}
 	}
 
-	if res == 4 {
+	if res == 5 {
 		fmt.Printf("\n%d receive all commands\n", nid)
 	} else {
 		fmt.Printf("%d Just break!!!!!\n", res)

@@ -27,7 +27,7 @@ func main() {
         fmt.Println(err)
         return
     }
-    for i := 0; i < 50; i++ {
+    for i := 0; i < 5; i++ {
         c := command.Command{"777", "888", command.Put}
         n2.Replicate(&c)
     }

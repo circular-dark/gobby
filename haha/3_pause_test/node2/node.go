@@ -38,7 +38,7 @@ func main() {
 	}()
 
 	res := 0
-	for res < 4 {
+	for res < 5 {
 		_, ok := <-done
 		if ok {
 			res++
@@ -47,7 +47,10 @@ func main() {
 		}
 	}
 
-	if res == 4 {
+	if res == 5 {
 		fmt.Printf("\n%d receive all commands\n", nid)
+	} else {
+		fmt.Printf("%d Just break!!!!!\n", res)
 	}
+
 }
