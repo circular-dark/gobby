@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	nid = 1
+	nid = 0
 )
 
 var done = make(chan struct{})
@@ -32,8 +32,10 @@ func main() {
 	}
 	go func() {
 		for i := 0; i < 2; i++ {
-			c := command.Command{"777", "888", command.Put}
+			c := command.Command{"333", "444", command.Put}
 			n3.Replicate(&c)
+			fmt.Println("node 0 sleep 5s")
+			time.Sleep(5 * time.Second)
 		}
 	}()
 
@@ -52,4 +54,5 @@ func main() {
 	} else {
 		fmt.Printf("%d Just break!!!!!\n", res)
 	}
+
 }

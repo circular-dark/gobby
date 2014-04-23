@@ -22,13 +22,17 @@ var (
 	LOGE = log.New(os.Stderr, "ERROR", log.Lmicroseconds|log.Lshortfile)
 	LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	//LOGV = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
-	_    = ioutil.Discard
+	_ = ioutil.Discard
 )
 
 //TODO:move this to paxosrpc, in order to implement dynamically add node
 type Node struct {
 	HostPort string
 	NodeID   int
+}
+
+type Gap struct {
+	from, to int //[from, to)
 }
 
 type IndexCommand struct {
@@ -43,23 +47,20 @@ type paxosNode struct {
 	nodeID, port, numNodes int
 	addrport               string
 
-	peers            []Node            //including itself
-	commitedCommands []command.Command //Log in memory
-
-	tempSlots  map[int]IndexCommand //CommandSlotIndex -> Na
-	maxSlotIdx int
+	peers            []Node               //including itself
+	commitedCommands []command.Command    //Log in memory
+	tempSlots        map[int]IndexCommand //CommandSlotIndex -> Na
 
 	tempSlotsMutex sync.Mutex
 	commitedMutex  sync.Mutex
 
 	callback PaxosCallBack
+	gapchan  chan Gap
 
 	listener *net.Listener
 }
 
 //Current setting: all settings are static
-
-//remoteHostPort is null now, numNodes always equals 3
 func NewPaxosNode(address string, port int, nodeID int, callback PaxosCallBack) (PaxosNode, error) {
 	node := paxosNode{}
 
@@ -76,9 +77,9 @@ func NewPaxosNode(address string, port int, nodeID int, callback PaxosCallBack) 
 		LOGV.Println(n1.HostPort)
 	}
 
-	//node.pendingCommands = list.New()
 	node.commitedCommands = make([]command.Command, 0)
 	node.tempSlots = make(map[int]IndexCommand)
+	node.gapchan = make(chan Gap)
 
 	//rpc
 	LOGV.Printf("Node %d tried listen on tcp:%d.\n", nodeID, port)
@@ -94,6 +95,9 @@ func NewPaxosNode(address string, port int, nodeID int, callback PaxosCallBack) 
 	node.listener = &listener
 	rpc.HandleHTTP()
 	go http.Serve(*node.listener, nil)
+	go CatchUpHandler(&node)
+
+	rand.Seed( time.Now().UTC().UnixNano())
 
 	return &node, nil
 }
@@ -107,8 +111,9 @@ func (pn *paxosNode) Prepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepare
 	if ok {
 		if args.N <= v.Nh { //n<nh
 			reply.Status = paxosrpc.Reject
-			//LOGV.Printf("node %d leaving OnPrepare(%d %s %d) [Rej]\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N)
-			//return nil
+			//to speed up, return the Nh the node have seen
+			//TODO:now it is not used, but we should consider it when we want to optimize the system a little bit
+			reply.Na = v.Nh
 		} else {
 			if v.isAccepted || v.isCommited { //accepted or commited state
 				v.Nh = args.N
@@ -156,7 +161,7 @@ func (pn *paxosNode) Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptRep
 	LOGV.Printf("node %d OnAccept:%d %s %d\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N)
 	pn.tempSlotsMutex.Lock()
 	v, ok := pn.tempSlots[args.SlotIdx]
-	if ok && args.N >= v.Nh {
+	if ok && args.N <= v.Nh {
 		/*if v.isAccepted || v.isCommited { //accepted or commited state
 			v.Nh = args.N
 			reply.Status = paxosrpc.OK
@@ -190,28 +195,36 @@ func (pn *paxosNode) Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptRep
 	pn.tempSlotsMutex.Unlock()
 	LOGV.Printf("node %d leaving OnAccept(%d %s %d)\t[%d]\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N, reply.Status)
 	return nil
-	//return errors.New("not implemented")
 }
 
 func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply) error {
 	LOGV.Printf("node %d OnCommit:%d %s %d\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N)
+	pn.tempSlotsMutex.Lock()
 	v, ok := pn.tempSlots[args.SlotIdx]
+	pn.tempSlotsMutex.Unlock()
 	pn.commitedMutex.Lock()
-	if ok && args.N == v.Na {
+	gap := 0
+	if ok && args.N == v.Na && !v.isCommited{
 		v.isCommited = true
 		pn.tempSlots[args.SlotIdx] = v
 
 		//write to log
 		for len(pn.commitedCommands) <= args.SlotIdx {
-			//TODO:command state
+			//TODO:Calculate from, to and send to CatchUpHandler
 			pn.commitedCommands = append(pn.commitedCommands, command.Command{})
+			gap++
 		}
 		pn.commitedCommands[args.SlotIdx] = v.V
+		pn.callback(v.Index, v.V)
 
 	}
 	//make a change to the state machine
 	pn.commitedMutex.Unlock()
-	pn.callback(v.Index, v.V)
+	//Send to CatchUpHandler
+	if gap > 1 {
+	  para := Gap{args.SlotIdx-gap+1, args.SlotIdx}
+	  pn.gapchan<-para
+	}
 	return nil
 }
 
@@ -220,7 +233,6 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 	replychan := make(chan *paxosrpc.PrepareReply, len(pn.peers))
 
 	for _, n := range pn.peers {
-		LOGV.Println("Try to call prepare on " + n.HostPort)
 		go func(peernode Node) {
 			r := paxosrpc.PrepareReply{}
 			peer, err := rpc.DialHTTP("tcp", peernode.HostPort)
@@ -250,13 +262,17 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 		r, _ := <-replychan
 		if r.Status != paxosrpc.Reject {
 			numOK++
-			if r.Na > reply.Na {
+			if r.Status == paxosrpc.Existed && r.Na > reply.Na {
 				reply.Na = r.Na
 				reply.Va = r.Va
 			}
 		} else {
 			numRej++
 		}
+	}
+	if reply.Na == -1 {
+	  reply.Na =args.N
+	  reply.Va=args.V
 	}
 	LOGV.Printf("node %d DoPrepare %d result:%s %d[%dOK %dRej]\n", pn.nodeID, args.SlotIdx, reply.Va.ToString(), reply.Na, numOK, numRej)
 
@@ -267,7 +283,6 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 		reply.Status = paxosrpc.Reject
 		return nil
 	}
-	//return errors.New("not implemented")
 }
 
 func (pn *paxosNode) DoAccept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply) error {
@@ -316,7 +331,6 @@ func (pn *paxosNode) DoAccept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptR
 		reply.Status = paxosrpc.Reject
 		return nil
 	}
-	//return errors.New("not implemented")
 }
 
 func (pn *paxosNode) DoCommit(args *paxosrpc.CommitArgs) error {
@@ -341,27 +355,72 @@ func (pn *paxosNode) DoCommit(args *paxosrpc.CommitArgs) error {
 		}(n)
 	}
 	return nil
-	//return errors.New("not implemented")
 }
 
 func (pn *paxosNode) Replicate(command *command.Command) error {
 	i := 1
-	for success := pn.DoReplicate(command, i); !success; {
+	_, success, num := pn.DoReplicate(command, 0, -1)
+	for !success {
 		LOGV.Println("Last Paxos is not success, waiting to try again...")
 		time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
 		LOGV.Println("Last Paxos is not success, try again...")
-		i++
-		success = pn.DoReplicate(command, i)
+		//i++
+		i = (num/pn.numNodes + 1)
+		_, success, num = pn.DoReplicate(command, i, -1)
 
 	}
 	return nil
 }
 
-func (pn *paxosNode) DoReplicate(command *command.Command, i int) bool {
+//Use NOP to detect the gap slots [from, to)
+func CatchUp(pn *paxosNode, from, to int) {
+	for index := from; index < to; index++ {
+		i := 1
+		LOGV.Printf("Try to catch up with slot %d\n", index)
+		c := command.Command{"", "", command.NOP}
+		success, _, num := pn.DoReplicate(&c, 0, index)
+		for !success {
+			LOGV.Println("Last Paxos is not success, waiting to try again...")
+			//TODO:maybe do not need to wait
+			time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
+			LOGV.Println("Last Paxos is not success, try again...")
+			//i++
+			i = (num/pn.numNodes + 1)
+			success, _, num = pn.DoReplicate(&c, i, index)
+
+		}
+		LOGV.Printf("Catched up with slot %d\n", index)
+	}
+}
+
+func CatchUpHandler(pn *paxosNode) {
+	for {
+		gap, ok := <-pn.gapchan
+		if ok {
+			LOGV.Printf("%d\t%d\n",gap.from, gap.to)
+			go CatchUp(pn, gap.from, gap.to)
+		} else {
+			break
+		}
+	}
+}
+
+//command is the command the app/paxos want to commit/nop
+//iter is the current iter round, a new command use this to increase its own N
+//index is the index of commitedCommands. When we want to commit a new command, set
+//index=-1, and when we want to fill the gap in slot i, sent index=i.
+//Now the functon return three values. The first is a boolean varible indicating the
+//current Paxos is success or not. The second is a boolean indicating the current
+//command is commited or rejected. The third is the current slot's highest Vh.
+func (pn *paxosNode) DoReplicate(command *command.Command, iter, index int) (bool, bool, int) {
 	//Prepare
 	prepareArgs := paxosrpc.PrepareArgs{}
-	prepareArgs.SlotIdx = len(pn.commitedCommands)
-	prepareArgs.N = pn.nodeID + i*pn.numNodes
+	if index == -1 {
+		prepareArgs.SlotIdx = len(pn.commitedCommands)
+	} else {
+		prepareArgs.SlotIdx = index
+	}
+	prepareArgs.N = pn.nodeID + iter*pn.numNodes
 	prepareArgs.V = *command
 
 	prepareReply := paxosrpc.PrepareReply{}
@@ -369,7 +428,7 @@ func (pn *paxosNode) DoReplicate(command *command.Command, i int) bool {
 
 	pn.DoPrepare(&prepareArgs, &prepareReply)
 	if prepareReply.Status == paxosrpc.Reject {
-		return false
+		return false, false, prepareReply.Na
 	}
 
 	//Accept
@@ -387,7 +446,7 @@ func (pn *paxosNode) DoReplicate(command *command.Command, i int) bool {
 	pn.DoAccept(&acceptArgs, &acceptReply)
 
 	if acceptReply.Status == paxosrpc.Reject {
-		return false
+		return false, false, acceptArgs.N
 	}
 
 	//Commit
@@ -397,11 +456,11 @@ func (pn *paxosNode) DoReplicate(command *command.Command, i int) bool {
 	commitArgs.V = acceptArgs.V
 	pn.DoCommit(&commitArgs)
 
-	//return true
+	//TODO:need check about the return number
 	if prepareReply.Na != prepareArgs.N {
-		return false
+		return true, false, prepareArgs.N
 	} else {
-		return true
+		return true, true, prepareArgs.N
 	}
 }
 

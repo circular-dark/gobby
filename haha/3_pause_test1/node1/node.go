@@ -9,14 +9,14 @@ import (
 )
 
 const (
-	nid = 1
+	nid = 2
 )
 
 var done = make(chan struct{})
 
 func fakecallback(index int, c command.Command) {
 	fmt.Printf("\n%d's index %d is %s\n", nid, index, c.ToString())
-	done<-struct{}{}
+	done <- struct{}{}
 }
 
 func main() {
@@ -31,10 +31,21 @@ func main() {
 		return
 	}
 	go func() {
-		for i := 0; i < 2; i++ {
-			c := command.Command{"777", "888", command.Put}
-			n3.Replicate(&c)
-		}
+			fmt.Println("Pause node.\n")
+			err = n3.Pause()
+			if err != nil {
+				fmt.Println("Cannot Pause node.\n")
+				fmt.Println(err)
+				return
+			}
+			time.Sleep(1 * time.Second)
+			fmt.Println("Resume node.\n")
+			err = n3.Resume()
+			if err != nil {
+				fmt.Println("Cannot Resume node.\n")
+				fmt.Println(err)
+				return
+			}
 	}()
 
 	res := 0
@@ -42,6 +53,12 @@ func main() {
 		_, ok := <-done
 		if ok {
 			res++
+			if res == 4 {
+			  go func() {
+			    c := command.Command{"111", "222", command.Put}
+			    n3.Replicate(&c)
+			  }()
+			}
 		} else {
 			break
 		}

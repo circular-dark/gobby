@@ -12,14 +12,12 @@ const (
 	nid = 1
 )
 
-var done = make(chan struct{})
-
 func fakecallback(index int, c command.Command) {
 	fmt.Printf("\n%d's index %d is %s\n", nid, index, c.ToString())
-	done<-struct{}{}
 }
 
 func main() {
+	done := make(chan struct{})
 	n3, err := paxos.NewPaxosNode(config.Nodes[nid].Address,
 		config.Nodes[nid].Port,
 		config.Nodes[nid].NodeID,
@@ -31,14 +29,14 @@ func main() {
 		return
 	}
 	go func() {
-		for i := 0; i < 2; i++ {
-			c := command.Command{"777", "888", command.Put}
+		for i := 0; i < 50; i++ {
+			c := command.Command{"111", "222", command.Put}
 			n3.Replicate(&c)
 		}
 	}()
 
 	res := 0
-	for res < 5 {
+	for res < 150 {
 		_, ok := <-done
 		if ok {
 			res++
@@ -47,9 +45,7 @@ func main() {
 		}
 	}
 
-	if res == 5 {
+	if res == 150 {
 		fmt.Printf("\n%d receive all commands\n", nid)
-	} else {
-		fmt.Printf("%d Just break!!!!!\n", res)
 	}
 }

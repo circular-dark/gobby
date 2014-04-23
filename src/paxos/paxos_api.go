@@ -35,7 +35,7 @@ type PaxosNode interface {
 	Resume() error
 
 	//Kill the Node, then we can recover the state with the log on disk.
-	//But it is a SECOND-TIER object.
+	//But it is a SECOND-TIER objective, or say, we do not use this now.
 	Terminate() error
 
 	//Print commited logs
