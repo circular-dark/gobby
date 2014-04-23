@@ -21,9 +21,7 @@ func main() {
                                   config.Nodes[nid].Port,
                                   config.Nodes[nid].NodeID,
                                   fakecallback)
-    time.Sleep(1 * time.Second)
-    n2.GetConns()
-    time.Sleep(1 * time.Second)
+    time.Sleep(5 * time.Second)
     if n2 == nil {
         fmt.Println("Cannot start node.\n")
         fmt.Println(err)
@@ -31,5 +29,5 @@ func main() {
     }
     c := command.Command{"777", "888", command.Put}
     n2.Replicate(&c)
-    time.Sleep(5 * time.Second)
+    time.Sleep(15 * time.Second)
 }

@@ -3,10 +3,12 @@ package command
 type commandType int
 
 const (
-    Put commandType = iota + 1
+    Null commandType = iota
+    Put
     Get
     Acquire
     Release
+    Bemaster
     NOP
 )
 
@@ -27,8 +29,8 @@ func (c Command) ToString() string {
         s = "Acquire"
     case Release:
         s = "Release"
-    case NOP:
-        s = "NOP"
+    case Bemaster:
+        s = "Bemaster"
     }
     s += " " + c.Key + " " + c.Value
     return s

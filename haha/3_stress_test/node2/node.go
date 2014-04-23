@@ -2,7 +2,7 @@ package main
 
 import (
     "fmt"
-    /* "strconv" */
+    "strconv"
     "time"
     "github.com/gobby/src/paxos"
     "github.com/gobby/src/config"
@@ -22,17 +22,15 @@ func main() {
                                   config.Nodes[nid].Port,
                                   config.Nodes[nid].NodeID,
                                   fakecallback)
-    time.Sleep(1 * time.Second)
-    n1.GetConns()
-    time.Sleep(1 * time.Second)
+    time.Sleep(5 * time.Second)
     if n1 == nil {
         fmt.Println("Cannot start node.\n")
         fmt.Println(err)
         return
     }
-    /* for i := 0; i < 1; i++ { */
-        /* c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put} */
-    /*     n1.Replicate(&c) */
-    /* } */
-    time.Sleep(10 * time.Second)
+    for i := 0; i < 1; i++ {
+        c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put}
+        n1.Replicate(&c)
+    }
+    time.Sleep(15 * time.Second)
 }

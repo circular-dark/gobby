@@ -3,7 +3,6 @@ package main
 import (
     "fmt"
     "time"
-    "strconv"
     "github.com/gobby/src/paxos"
     "github.com/gobby/src/config"
     "github.com/gobby/src/command"
@@ -28,9 +27,9 @@ func main() {
         fmt.Println(err)
         return
     }
-    for i := 0; i < 200; i++ {
-        c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put}
+    for i := 0; i < 5; i++ {
+        c := command.Command{"777", "888", command.Put}
         n2.Replicate(&c)
     }
-    time.Sleep(15 * time.Second)
+    time.Sleep(60 * time.Second)
 }
