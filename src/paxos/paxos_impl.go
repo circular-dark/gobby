@@ -19,9 +19,10 @@ import (
 )
 
 var (
-	LOGE = log.New(os.Stderr, "ERROR", log.Lmicroseconds|log.Lshortfile)
-	LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
-	//LOGV = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	/* LOGE = log.New(os.Stderr, "ERROR", log.Lmicroseconds|log.Lshortfile) */
+	LOGE = log.New(ioutil.Discard, "ERROR", log.Lmicroseconds|log.Lshortfile)
+	/* LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile) */
+	LOGV = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	_ = ioutil.Discard
 )
 

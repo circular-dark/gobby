@@ -6,6 +6,7 @@ import (
 	"github.com/gobby/src/config"
 	"github.com/gobby/src/paxos"
 	"time"
+    "strconv"
 )
 
 const (
@@ -38,7 +39,10 @@ func main() {
 				fmt.Println(err)
 				return
 			}
-			time.Sleep(1 * time.Second)
+			time.Sleep(3 * time.Second)
+            c := command.Command{strconv.Itoa(nid), strconv.Itoa(0), command.Put}
+			n3.Replicate(&c)
+			time.Sleep(3 * time.Second)
 			fmt.Println("Resume node.\n")
 			err = n3.Resume()
 			if err != nil {
@@ -46,12 +50,12 @@ func main() {
 				fmt.Println(err)
 				return
 			}
-			c := command.Command{"111", "222", command.Put}
+            c = command.Command{strconv.Itoa(nid), strconv.Itoa(1), command.Put}
 			n3.Replicate(&c)
 	}()
 
 	res := 0
-	for res < 5 {
+	for res < 6 {
 		_, ok := <-done
 		if ok {
 			res++
@@ -60,9 +64,10 @@ func main() {
 		}
 	}
 
-	if res == 5 {
+	if res == 6 {
 		fmt.Printf("\n%d receive all commands\n", nid)
 	} else {
 		fmt.Printf("%d Just break!!!!!\n", res)
 	}
+    n3.DumpLog()
 }

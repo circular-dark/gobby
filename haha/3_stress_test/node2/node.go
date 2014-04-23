@@ -28,9 +28,10 @@ func main() {
         fmt.Println(err)
         return
     }
-    for i := 0; i < 1; i++ {
+    for i := 0; i < 300; i++ {
         c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put}
         n1.Replicate(&c)
     }
     time.Sleep(15 * time.Second)
+    n1.DumpLog()
 }
