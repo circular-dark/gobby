@@ -5,33 +5,40 @@ import (
     "time"
     "strconv"
     "github.com/gobby/src/paxos"
-    "github.com/gobby/src/config"
     "github.com/gobby/src/command"
 )
 
 const (
-    nid = 1
+    nid = 2
+    numNodes = 3
 )
+
+var done = make(chan struct{}, 150)
 
 func fakecallback(index int, c command.Command) {
     fmt.Printf("\n%d's index %d is %s\n", nid, index, c.ToString())
+	done<-struct{}{}
 }
 
 func main() {
-    n2, err := paxos.NewPaxosNode(config.Nodes[nid].Address,
-                                  config.Nodes[nid].Port,
-                                  config.Nodes[nid].NodeID,
-                                  fakecallback)
-    time.Sleep(5 * time.Second)
-    if n2 == nil {
+    fmt.Printf("node %d starts\n", nid)
+    node, err := paxos.NewPaxosNode(nid, numNodes, fakecallback)
+    if node == nil {
         fmt.Println("Cannot start node.\n")
         fmt.Println(err)
         return
     }
+    time.Sleep(5 * time.Second)
     for i := 0; i < 50; i++ {
         c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put}
-        n2.Replicate(&c)
+        node.Replicate(&c)
     }
-    time.Sleep(10 * time.Second)
-    n2.DumpLog()
+	for res := 0; res < 150; res++ {
+		_, ok := <-done
+		if !ok {
+	        break
+		}
+	}
+    node.DumpLog()
+    fmt.Printf("node %d closes\n", nid)
 }
