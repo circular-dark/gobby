@@ -510,3 +510,25 @@ func (pn *paxosNode) DumpLog() error {
         return err
     }
 }
+
+func (pn *paxosNode) PrepareWrapper(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply, reqDropRate, replyDropRate float64) error {
+  return errors.New("Not implemented.")
+}
+func (pn *paxosNode) AcceptWrapper(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply, reqDropRate,replyDropRate float64) error{
+  return errors.New("Not implemented.")
+}
+func (pn *paxosNode) CommitWrapper(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply, reqDropRate,replyDropRate float64) error{
+  return errors.New("Not implemented.")
+}
+func (pn *paxosNode) DoPrepareWrapper(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply, reqDropRate,replyDropRate float64) error{
+  return errors.New("Not implemented.")
+}
+func (pn *paxosNode) DoAcceptWrapper(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply, reqDropRate,replyDropRate float64) error{
+  return errors.New("Not implemented.")
+}
+func (pn *paxosNode) DoCommitWrapper(args *paxosrpc.CommitArgs, reqDropRate,replyDropRate float64) error{
+  return errors.New("Not implemented.")
+}
+func (pn *paxosNode) ReplicateWrapper(command *command.Command) error{
+  return errors.New("Not implemented.")
+}
