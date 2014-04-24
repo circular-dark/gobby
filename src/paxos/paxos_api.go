@@ -28,6 +28,14 @@ type PaxosNode interface {
 	Replicate(command *command.Command) error
 
 	//For testing
+	PrepareWrapper(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply, reqDropRate, replyDropRate float64) error
+	AcceptWrapper(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply, reqDropRate,replyDropRate float64) error
+	CommitWrapper(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply, reqDropRate,replyDropRate float64) error
+	DoPrepareWrapper(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply, reqDropRate,replyDropRate float64) error
+	DoAcceptWrapper(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply, reqDropRate,replyDropRate float64) error
+	DoCommitWrapper(args *paxosrpc.CommitArgs, reqDropRate,replyDropRate float64) error
+	ReplicateWrapper(command *command.Command) error
+
 	//Pause the Node, it does not receive any rpc calls. But it is still able to
 	//call other node. So it is the tester's reposibility to make sure not to call
 	//others so that the tester can simulate the network error for this node.
