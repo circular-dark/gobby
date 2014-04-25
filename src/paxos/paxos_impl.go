@@ -19,10 +19,11 @@ import (
 )
 
 var (
-	//LOGE = log.New(os.Stderr, "ERROR", log.Lmicroseconds|log.Lshortfile)
-	LOGE = log.New(ioutil.Discard, "ERROR", log.Lmicroseconds|log.Lshortfile)
-	//LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
-	LOGV = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	LOGE = log.New(os.Stderr, "ERROR", log.Lmicroseconds|log.Lshortfile)
+	//LOGE = log.New(ioutil.Discard, "ERROR", log.Lmicroseconds|log.Lshortfile)
+	LOGV  = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	LOGV2 = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	//LOGV = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	_ = ioutil.Discard
 )
 
@@ -72,12 +73,12 @@ func NewPaxosNode(nodeID int, numNodes int, callback PaxosCallBack) (PaxosNode, 
 
 	node.peers = make([]Node, node.numNodes)
 	for i := 0; i < numNodes; i++ {
-        node.peers[i].HostPort = config.Nodes[i].Address + ":" + strconv.Itoa(config.Nodes[i].Port)
-        node.peers[i].NodeID = i
+		node.peers[i].HostPort = config.Nodes[i].Address + ":" + strconv.Itoa(config.Nodes[i].Port)
+		node.peers[i].NodeID = i
 	}
 
-	//file, _ := os.OpenFile(strconv.Itoa(nodeID)+"file.txt", os.O_CREATE|os.O_RDWR, 0666)
-	//LOGV = log.New(file, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	file, _ := os.OpenFile(strconv.Itoa(nodeID)+"file.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	LOGV2 = log.New(file, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	node.commitedCommands = make([]command.Command, 0)
 	node.tempSlots = make(map[int]IndexCommand)
 	node.gapchan = make(chan Gap)
@@ -107,6 +108,7 @@ func NewPaxosNode(nodeID int, numNodes int, callback PaxosCallBack) (PaxosNode, 
 //Each command slot has its own na,nh,v, or say, version control
 func (pn *paxosNode) Prepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply) error {
 	LOGV.Printf("node %d OnPrepare:%d %s %d\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N)
+	LOGV2.Printf("node %d get lock in Prepare()\n", pn.nodeID)
 	pn.cmdMutex.Lock()
 	v, ok := pn.tempSlots[args.SlotIdx]
 	if ok {
@@ -149,6 +151,7 @@ func (pn *paxosNode) Prepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepare
 		reply.Na = ic.Na
 		reply.Va = ic.V
 	}
+	LOGV2.Printf("node %d release lock in Prepare()\n", pn.nodeID)
 	pn.cmdMutex.Unlock()
 	LOGV.Printf("node %d leaving OnPrepare(%d %s %d)\n\t[%d %d %s]\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N, reply.Status, reply.Na, reply.Va.ToString())
 	return nil
@@ -156,6 +159,7 @@ func (pn *paxosNode) Prepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepare
 
 func (pn *paxosNode) Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply) error {
 	LOGV.Printf("node %d OnAccept:%d %s %d\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N)
+	LOGV2.Printf("node %d get lock in Accept()\n", pn.nodeID)
 	pn.cmdMutex.Lock()
 	v, ok := pn.tempSlots[args.SlotIdx]
 	if ok && args.N >= v.Nh {
@@ -187,6 +191,7 @@ func (pn *paxosNode) Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptRep
 	} else {
 		reply.Status = paxosrpc.Reject
 	}
+	LOGV2.Printf("node %d release lock in Accept()\n", pn.nodeID)
 	pn.cmdMutex.Unlock()
 	LOGV.Printf("node %d leaving OnAccept(%d %s %d)\t[%d]\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N, reply.Status)
 	return nil
@@ -194,10 +199,11 @@ func (pn *paxosNode) Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptRep
 
 func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply) error {
 	LOGV.Printf("node %d OnCommit:%d %s %d\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N)
+	LOGV2.Printf("node %d get lock in Commit()\n", pn.nodeID)
 	pn.cmdMutex.Lock()
 	v, ok := pn.tempSlots[args.SlotIdx]
 	gap := 0
-	if ok && args.N == v.Na && !v.isCommited{
+	if ok && args.N == v.Na && !v.isCommited {
 		v.isCommited = true
 		v.V = args.V //TODO:Is it correct?
 		pn.tempSlots[args.SlotIdx] = v
@@ -210,11 +216,12 @@ func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitRep
 		pn.commitedCommands[args.SlotIdx] = v.V
 		pn.callback(v.Index, v.V)
 	}
+	LOGV2.Printf("node %d release lock in Commit()\n", pn.nodeID)
 	pn.cmdMutex.Unlock()
 	//Send to CatchUpHandler
 	if gap > 1 {
-        para := Gap{args.SlotIdx-gap+1, args.SlotIdx}
-        pn.gapchan<-para
+		para := Gap{args.SlotIdx - gap + 1, args.SlotIdx}
+		pn.gapchan <- para
 	}
 	return nil
 }
@@ -228,7 +235,7 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 			r := paxosrpc.PrepareReply{}
 			peer, err := rpc.DialHTTP("tcp", peernode.HostPort)
 			if err != nil {
-				LOGE.Printf("Cannot reach peer %s" + peernode.HostPort, err)
+				LOGE.Printf("Cannot reach peer %s"+peernode.HostPort, err)
 				r.Status = paxosrpc.Reject
 				replychan <- &r
 				return
@@ -262,8 +269,8 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 		}
 	}
 	if reply.Na == -1 {
-	  reply.Na =args.N
-	  reply.Va=args.V
+		reply.Na = args.N
+		reply.Va = args.V
 	}
 	LOGV.Printf("node %d DoPrepare %d result:%s %d[%dOK %dRej]\n", pn.nodeID, args.SlotIdx, reply.Va.ToString(), reply.Na, numOK, numRej)
 
@@ -329,7 +336,7 @@ func (pn *paxosNode) DoCommit(args *paxosrpc.CommitArgs) error {
 
 	for _, n := range pn.peers {
 		go func(peernode Node) {
-            r := new(paxosrpc.CommitReply)
+			r := new(paxosrpc.CommitReply)
 			peer, err := rpc.DialHTTP("tcp", peernode.HostPort)
 			if err != nil {
 				LOGE.Println("Cannot reach peer " + peernode.HostPort)
@@ -349,10 +356,10 @@ func (pn *paxosNode) DoCommit(args *paxosrpc.CommitArgs) error {
 		}(n)
 	}
 
-    for num := 0; num < pn.numNodes; num++ {
-        _, _ = <-replychan
-        LOGV.Printf("in loop, receive %d\n", num)
-    }
+	for num := 0; num < pn.numNodes; num++ {
+		_, _ = <-replychan
+		LOGV.Printf("in loop, receive %d\n", num)
+	}
 	return nil
 }
 
@@ -395,7 +402,7 @@ func CatchUpHandler(pn *paxosNode) {
 	for {
 		gap, ok := <-pn.gapchan
 		if ok {
-			LOGV.Printf("%d\t%d\n",gap.from, gap.to)
+			LOGV.Printf("%d\t%d\n", gap.from, gap.to)
 			go CatchUp(pn, gap.from, gap.to)
 		} else {
 			break
@@ -414,9 +421,11 @@ func (pn *paxosNode) DoReplicate(command *command.Command, iter, index int) (boo
 	//Prepare
 	prepareArgs := paxosrpc.PrepareArgs{}
 	if index == -1 {
-        pn.cmdMutex.Lock()
+		LOGV2.Printf("node %d get lock in DoReplicate()\n", pn.nodeID)
+		pn.cmdMutex.Lock()
 		prepareArgs.SlotIdx = len(pn.commitedCommands)
-        pn.cmdMutex.Unlock()
+		LOGV2.Printf("node %d release lock in DoReplicate()\n", pn.nodeID)
+		pn.cmdMutex.Unlock()
 	} else {
 		prepareArgs.SlotIdx = index
 	}
@@ -465,9 +474,6 @@ func (pn *paxosNode) DoReplicate(command *command.Command, iter, index int) (boo
 }
 
 func (pn *paxosNode) Terminate() error {
-	//close(pn.pushBackChan)
-	//close(pn.pushFrontChan)
-	//close(pn.popChan)
 	return errors.New("not implemented")
 }
 
@@ -493,40 +499,40 @@ func (pn *paxosNode) Resume() error {
 
 func (pn *paxosNode) DumpLog() error {
 	LOGV.Printf("node %d start dumping log...", pn.nodeID)
-    logname := "dumplog_" + strconv.Itoa(pn.nodeID)
-    if f, err := os.Create(logname); err == nil {
-        for i, n := range pn.commitedCommands {
-            s := fmt.Sprintf("%d: %s\n", i, n.ToString())
-            if _, err = f.WriteString(s); err != nil {
-                return err
-            }
-        }
-        f.Close()
-        LOGV.Printf("node %d finish dumping log...", pn.nodeID)
-        return nil
-    } else {
-        return err
-    }
+	logname := "dumplog_" + strconv.Itoa(pn.nodeID)
+	if f, err := os.Create(logname); err == nil {
+		for i, n := range pn.commitedCommands {
+			s := fmt.Sprintf("%d: %s\n", i, n.ToString())
+			if _, err = f.WriteString(s); err != nil {
+				return err
+			}
+		}
+		f.Close()
+		LOGV.Printf("node %d finish dumping log...", pn.nodeID)
+		return nil
+	} else {
+		return err
+	}
 }
 
 func (pn *paxosNode) PrepareWrapper(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply, reqDropRate, replyDropRate float64) error {
-  return errors.New("Not implemented.")
+	return errors.New("Not implemented.")
 }
-func (pn *paxosNode) AcceptWrapper(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply, reqDropRate,replyDropRate float64) error{
-  return errors.New("Not implemented.")
+func (pn *paxosNode) AcceptWrapper(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply, reqDropRate, replyDropRate float64) error {
+	return errors.New("Not implemented.")
 }
-func (pn *paxosNode) CommitWrapper(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply, reqDropRate,replyDropRate float64) error{
-  return errors.New("Not implemented.")
+func (pn *paxosNode) CommitWrapper(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply, reqDropRate, replyDropRate float64) error {
+	return errors.New("Not implemented.")
 }
-func (pn *paxosNode) DoPrepareWrapper(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply, reqDropRate,replyDropRate float64) error{
-  return errors.New("Not implemented.")
+func (pn *paxosNode) DoPrepareWrapper(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply, reqDropRate, replyDropRate float64) error {
+	return errors.New("Not implemented.")
 }
-func (pn *paxosNode) DoAcceptWrapper(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply, reqDropRate,replyDropRate float64) error{
-  return errors.New("Not implemented.")
+func (pn *paxosNode) DoAcceptWrapper(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply, reqDropRate, replyDropRate float64) error {
+	return errors.New("Not implemented.")
 }
-func (pn *paxosNode) DoCommitWrapper(args *paxosrpc.CommitArgs, reqDropRate,replyDropRate float64) error{
-  return errors.New("Not implemented.")
+func (pn *paxosNode) DoCommitWrapper(args *paxosrpc.CommitArgs, reqDropRate, replyDropRate float64) error {
+	return errors.New("Not implemented.")
 }
-func (pn *paxosNode) ReplicateWrapper(command *command.Command) error{
-  return errors.New("Not implemented.")
+func (pn *paxosNode) ReplicateWrapper(command *command.Command) error {
+	return errors.New("Not implemented.")
 }
