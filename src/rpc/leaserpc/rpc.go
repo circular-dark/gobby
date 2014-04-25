@@ -1,8 +1,10 @@
 package leaserpc
 
 type RemoteLeaseNode interface {
-	Prepare(args *PrepareArgs, reply *PrepareReply) error
-	Accept(args *AcceptArgs, reply *AcceptReply) error
+	Prepare(args *Args, reply *Reply) error
+	Accept(args *Args, reply *Reply) error
+	RenewPrepare(args *Args, reply *Reply) error
+	RenewAccept(args *Args, reply *Reply) error
 }
 
 type LeaseNode struct {

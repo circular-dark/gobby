@@ -7,19 +7,10 @@ const (
 	Reject                    //The RPC was a rejection
 )
 
-type PrepareArgs struct {
+type Args struct {
 	N       int
 }
 
-type PrepareReply struct {
-	Status Status
-}
-
-type AcceptArgs struct {
-	N int
-	Span int // number of periods
-}
-
-type AcceptReply struct {
+type Reply struct {
 	Status Status
 }

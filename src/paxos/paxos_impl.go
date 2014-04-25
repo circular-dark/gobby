@@ -57,8 +57,6 @@ type paxosNode struct {
 	callback PaxosCallBack
 	gapchan  chan Gap
 
-    isMaster bool
-
 	listener *net.Listener
 }
 
@@ -71,7 +69,6 @@ func NewPaxosNode(nodeID int, numNodes int, callback PaxosCallBack) (PaxosNode, 
 	node.numNodes = numNodes
 	node.addrport = config.Nodes[nodeID].Address + ":" + strconv.Itoa(node.port)
 	node.callback = callback
-    node.isMaster = false
 
 	node.peers = make([]Node, node.numNodes)
 	for i := 0; i < numNodes; i++ {
