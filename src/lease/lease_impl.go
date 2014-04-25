@@ -193,7 +193,7 @@ func (ln *leaseNode) DoRenewPrepare(args *leaserpc.Args, reply *leaserpc.Reply) 
     return ln.dofunction(args, reply, "LeaseNode.RenewPrepare")
 }
 
-func (ln *leaseNode) DoARenewccept(args *leaserpc.Args, reply *leaserpc.Reply) error {
+func (ln *leaseNode) DoRenewAccept(args *leaserpc.Args, reply *leaserpc.Reply) error {
     return ln.dofunction(args, reply, "LeaseNode.RenewAccept")
 }
 
@@ -221,7 +221,7 @@ func (ln *leaseNode) renewLease() {
     }
 	acceptReply := leaserpc.Reply{}
 
-	ln.DoAccept(&acceptArgs, &acceptReply)
+	ln.DoRenewAccept(&acceptArgs, &acceptReply)
 	if acceptReply.Status == leaserpc.Reject {
 		return
 	}
