@@ -184,8 +184,6 @@ func (pn *paxosNode) Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptRep
 		pn.tempSlots[args.SlotIdx] = ic
 
 		reply.Status = paxosrpc.OK
-		return nil
-
 	} else {
 		reply.Status = paxosrpc.Reject
 	}
