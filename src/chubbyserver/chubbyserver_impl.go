@@ -2,82 +2,128 @@ package chubbyserver
 
 import (
     "sync"
+    "strconv"
     "time"
     "github.com/gobby/src/rpc/chubbyrpc"
     "github.com/gobby/src/paxos"
     "github.com/gobby/src/command"
 )
 
-const (
-    masterLeaseLength int = 20 // 20 tickUnits
-    slaveLeaseLength int = 30 // 30 tickUnits
-    tickUnit int = 100 // 100 milliseconds
-)
+type kstate struct {
+    value string
+    lockstamp string // a unixtime int64 stamp for identifying the lock (sequencer value)
+    locked bool
+}
 
 type chubbyserver struct {
-    kvstore map[string]string
-    kvlock map[string]string
-    masterHostPort string
-    myHostPort string
+    store map[string]*kstate
     commandLog []*command.Command
-    masterLease int // lease length is a multiple of 100ms
     nextIndex int // next index of command that should be executed
-    closeCh chan struct{} // channel for close associate goroutines
-    lock *sync.Mutex
+    nextCID int // next command ID that should be assigned
+    replyChs map[int]chan *chubbyrpc.ChubbyReply // maps command id to channels that block RPC calls
+    lock sync.Mutex
     paxosnode paxos.PaxosNode
 }
 
-func NewChubbyServer(hostport string, numNodes int, port int, nodeID int) (Chubbyserver, error) {
+func NewChubbyServer(nodeID int, numNodes int) (Chubbyserver, error) {
     server := new(chubbyserver)
-    server.kvstore = make(map[string]string)
-    server.kvlock = make(map[string]string)
-    server.masterHostPort = ""
-    server.myHostPort = hostport
+    server.store = make(map[string]*kstate)
     server.commandLog = make([]*command.Command, 0)
     server.nextIndex = 0
-    server.closeCh = make(chan struct{})
-    server.lock = new(sync.Mutex)
-    var err error
-    if server.paxosnode, err = paxos.NewPaxosNode(hostport, numNodes, port, nodeID); err != nil {
+    if node, err := paxos.NewPaxosNode(nodeID, numNodes, server.getCommand); err != nil {
         return nil, err
     } else {
-        go server.leaseManager()
+        server.paxosnode = node
         return server, nil
     }
 }
 
-func (server *chubbyserver) Close() {
-    close(server.closeCh)
-}
-
-func (server *chubbyserver) Put(args *chubbyrpc.PutArgs, reply *chubbyrpc.PutReply) error {
-    return nil
-}
-
-func (server *chubbyserver) Get(args *chubbyrpc.GetArgs, reply *chubbyrpc.GetReply) error {
-    return nil
-}
-
-func (server *chubbyserver) Aquire(args *chubbyrpc.AquireArgs, reply *chubbyrpc.AquireReply) (bool, error) {
-    return false, nil
-}
-
-func (server *chubbyserver) Release(args *chubbyrpc.ReleaseArgs, reply *chubbyrpc.ReleaseReply) error {
-    return nil
-}
-
-func (server *chubbyserver) GetMasterHostport(args *chubbyrpc.GetMasterArgs, reply *chubbyrpc.GetMasterReply) error {
-    return nil
-}
-
-func (server *chubbyserver) getCommandCallBack(index int, c *command.Command) {
+func (server *chubbyserver) Put(args *chubbyrpc.PutArgs, reply *chubbyrpc.ChubbyReply) error {
     server.lock.Lock()
-    if index >= len(server.commandLog) {
-        for len(server.commandLog) < index + 1 {
-            server.commandLog = append(server.commandLog, nil)
-        }
+    c := &command.Command{
+        Key: args.Key,
+        Value: args.Value,
+        Type: command.Put,
+        ID: server.nextCID,
     }
-    server.commandLog[index] = c
+    replyCh := make(chan *chubbyrpc.ChubbyReply)
+    server.nextCID++
+    server.replyChs[c.ID] = replyCh
+    server.lock.Unlock()
+    server.paxosnode.Replicate(c)
+
+    // blocking for reply
+    r := <-replyCh
+    reply.Status = r.Status
+    return nil
+}
+
+func (server *chubbyserver) Get(args *chubbyrpc.GetArgs, reply *chubbyrpc.ChubbyReply) error {
+    server.lock.Lock()
+    c := &command.Command{
+        Key: args.Key,
+        Type: command.Get,
+        ID: server.nextCID,
+    }
+    replyCh := make(chan *chubbyrpc.ChubbyReply)
+    server.nextCID++
+    server.replyChs[c.ID] = replyCh
+    server.lock.Unlock()
+    server.paxosnode.Replicate(c)
+
+    // blocking for reply
+    r := <-replyCh
+    reply.Status = r.Status
+    reply.Value = r.Value
+    return nil
+}
+
+func (server *chubbyserver) Aquire(args *chubbyrpc.AquireArgs, reply *chubbyrpc.ChubbyReply) error {
+    server.lock.Lock()
+    c := &command.Command{
+        Key: args.Key,
+        Type: command.Acquire,
+        ID: server.nextCID,
+    }
+    replyCh := make(chan *chubbyrpc.ChubbyReply)
+    server.nextCID++
+    server.replyChs[c.ID] = replyCh
+    server.lock.Unlock()
+    server.paxosnode.Replicate(c)
+
+    // blocking for reply
+    r := <-replyCh
+    reply.Status = r.Status
+    reply.Value = r.Value // lockstamp
+    return nil
+}
+
+func (server *chubbyserver) Release(args *chubbyrpc.ReleaseArgs, reply *chubbyrpc.ChubbyReply) error {
+    server.lock.Lock()
+    c := &command.Command{
+        Key: args.Key,
+        Value: args.Lockstamp,
+        Type: command.Release,
+        ID: server.nextCID,
+    }
+    replyCh := make(chan *chubbyrpc.ChubbyReply)
+    server.nextCID++
+    server.replyChs[c.ID] = replyCh
+    server.lock.Unlock()
+    server.paxosnode.Replicate(c)
+
+    // blocking for reply
+    r := <-replyCh
+    reply.Status = r.Status
+    return nil
+}
+
+func (server *chubbyserver) getCommand(index int, c command.Command) {
+    server.lock.Lock()
+    for len(server.commandLog) < index + 1 {
+        server.commandLog = append(server.commandLog, nil)
+    }
+    server.commandLog[index] = &c
     server.lock.Unlock()
     server.executeCommands()
 }
@@ -86,51 +132,75 @@ func (server *chubbyserver) executeCommands() {
     server.lock.Lock()
     for server.nextIndex < len(server.commandLog) && server.commandLog[server.nextIndex] != nil {
         c := server.commandLog[server.nextIndex]
+        cid := c.ID
+        replyCh := server.replyChs[cid]
+        delete(server.replyChs, cid)
+
         switch (c.Type) {
         case command.Put:
-            server.kvstore[c.Key] = c.Value
+            if st, ok := server.store[c.Key]; ok {
+                st.value = c.Value
+                replyCh <- &chubbyrpc.ChubbyReply{
+                    Status: chubbyrpc.OK,
+                }
+            } else {
+                server.store[c.Key] = &kstate{
+                    value: c.Value,
+                    locked: false,
+                }
+                replyCh <- &chubbyrpc.ChubbyReply{
+                    Status: chubbyrpc.OK,
+                }
+            }
         case command.Get:
+            if st, ok := server.store[c.Key]; ok {
+                replyCh <- &chubbyrpc.ChubbyReply{
+                    Status: chubbyrpc.OK,
+                    Value: st.value,
+                }
+            } else {
+                replyCh <- &chubbyrpc.ChubbyReply{
+                    Status: chubbyrpc.FAIL,
+                }
+            }
         case command.Acquire:
-            if val, ok := server.kvlock[c.Key]; ok && val == "" {
-                server.kvlock[c.Key] = c.Value
+            if st, ok := server.store[c.Key]; ok {
+                if st.locked {
+                    replyCh <- &chubbyrpc.ChubbyReply{
+                        Status: chubbyrpc.FAIL,
+                    }
+                } else {
+                    st.locked = true
+                    st.lockstamp = strconv.FormatInt(time.Now().UnixNano(), 10)
+                    replyCh <- &chubbyrpc.ChubbyReply{
+                        Status: chubbyrpc.OK,
+                        Value: st.lockstamp,
+                    }
+                }
+            } else {
+                replyCh <- &chubbyrpc.ChubbyReply{
+                    Status: chubbyrpc.FAIL,
+                }
             }
         case command.Release:
-            if val, ok := server.kvlock[c.Key]; ok && val == c.Value {
-                server.kvlock[c.Key] = ""
-            }
-        case command.Bemaster:
-            if c.Key == server.myHostPort {
-                server.masterHostPort = server.myHostPort
-                server.masterLease = masterLeaseLength
+            if st, ok := server.store[c.Key]; ok {
+                if !st.locked || st.lockstamp != c.Value {
+                    replyCh <- &chubbyrpc.ChubbyReply{
+                        Status: chubbyrpc.FAIL,
+                    }
+                } else {
+                    st.locked = false
+                    replyCh <- &chubbyrpc.ChubbyReply{
+                        Status: chubbyrpc.OK,
+                    }
+                }
             } else {
-                server.masterHostPort = c.Key
-                server.masterLease = slaveLeaseLength
+                replyCh <- &chubbyrpc.ChubbyReply{
+                    Status: chubbyrpc.FAIL,
+                }
             }
         }
         server.nextIndex++
     }
     server.lock.Unlock()
-}
-
-func (server *chubbyserver) leaseManager() {
-    tick := time.NewTicker(time.Duration(tickUnit) * time.Millisecond)
-    for {
-        select {
-        case <-tick.C:
-            server.lock.Lock()
-            if server.masterHostPort == "" || server.masterLease <= 0 {
-                server.masterHostPort = ""
-                c := &command.Command{
-                    Key: server.myHostPort,
-                    Type: command.Bemaster,
-                }
-                server.paxosnode.Replicate(c)
-            } else {
-                server.masterLease--
-            }
-            server.lock.Unlock()
-        case <-server.closeCh:
-            return
-        }
-    }
 }

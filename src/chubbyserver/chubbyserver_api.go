@@ -5,9 +5,8 @@ import (
 )
 
 type Chubbyserver interface {
-	Put(args *chubbyrpc.PutArgs, reply *chubbyrpc.PutReply) error
-	Get(args *chubbyrpc.GetArgs, reply *chubbyrpc.GetReply) error
-	Aquire(args *chubbyrpc.AquireArgs, reply *chubbyrpc.AquireReply) (bool, error)
-	Release(args *chubbyrpc.ReleaseArgs, reply *chubbyrpc.ReleaseReply) error
-    GetMasterHostport(args *chubbyrpc.GetMasterArgs, reply *chubbyrpc.GetMasterReply) error
+	Put(args *chubbyrpc.PutArgs, reply *chubbyrpc.ChubbyReply) error
+	Get(args *chubbyrpc.GetArgs, reply *chubbyrpc.ChubbyReply) error
+	Aquire(args *chubbyrpc.AquireArgs, reply *chubbyrpc.ChubbyReply) error
+	Release(args *chubbyrpc.ReleaseArgs, reply *chubbyrpc.ChubbyReply) error
 }
