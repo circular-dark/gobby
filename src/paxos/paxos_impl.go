@@ -6,6 +6,7 @@ import (
 	"github.com/gobby/src/command"
 	"github.com/gobby/src/config"
 	"github.com/gobby/src/rpc/paxosrpc"
+	"github.com/gobby/src/rpc/rpcwrapper"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -22,8 +23,8 @@ var (
 	LOGE = log.New(os.Stderr, "ERROR", log.Lmicroseconds|log.Lshortfile)
 	//LOGE = log.New(ioutil.Discard, "ERROR", log.Lmicroseconds|log.Lshortfile)
 	LOGV  = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
-	LOGV2 = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
-	//LOGV = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	//LOGV2 = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	LOGV2 = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	_ = ioutil.Discard
 )
 
@@ -78,7 +79,7 @@ func NewPaxosNode(nodeID int, numNodes int, callback PaxosCallBack) (PaxosNode, 
 	}
 
 	file, _ := os.OpenFile(strconv.Itoa(nodeID)+"file.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
-	LOGV2 = log.New(file, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	LOGV = log.New(file, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	node.commitedCommands = make([]command.Command, 0)
 	node.tempSlots = make(map[int]IndexCommand)
 	node.gapchan = make(chan Gap)
@@ -188,7 +189,6 @@ func (pn *paxosNode) Accept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptRep
 		pn.tempSlots[args.SlotIdx] = ic
 
 		reply.Status = paxosrpc.OK
-		return nil
 
 	} else {
 		reply.Status = paxosrpc.Reject
@@ -206,6 +206,12 @@ func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitRep
 	v, ok := pn.tempSlots[args.SlotIdx]
 	gap := 0
 	if ok && args.N == v.Na && !v.isCommited {
+		//if !ok || !v.isCommited {
+		if !ok {
+			v = IndexCommand{}
+			v.isAccepted = true
+			v.Index = args.SlotIdx
+		}
 		v.isCommited = true
 		v.V = args.V //TODO:Is it correct?
 		pn.tempSlots[args.SlotIdx] = v
@@ -225,6 +231,7 @@ func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitRep
 		para := Gap{args.SlotIdx - gap + 1, args.SlotIdx}
 		pn.gapchan <- para
 	}
+	LOGV.Printf("node %d leaving OnCommit:%d %s %d\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N)
 	return nil
 }
 
@@ -232,12 +239,12 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 	LOGV.Printf("node %d DoPrepare:%d %s %d\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N)
 	replychan := make(chan *paxosrpc.PrepareReply, len(pn.peers))
 
-	for _, n := range pn.peers {
-		go func(peernode Node) {
+	for i, n := range pn.peers {
+		go func(idx int, peernode Node) {
 			r := paxosrpc.PrepareReply{}
-			peer, err := rpc.DialHTTP("tcp", peernode.HostPort)
+			peer, err := rpcwrapper.DialHTTP("tcp", peernode.HostPort)
 			if err != nil {
-				LOGE.Printf("Cannot reach peer %s"+peernode.HostPort, err)
+				LOGE.Printf("node %d Cannot reach peer %d:%s\n", pn.nodeID, idx, peernode.HostPort)
 				r.Status = paxosrpc.Reject
 				replychan <- &r
 				return
@@ -252,7 +259,7 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 				replychan <- &r
 			}
 			peer.Close()
-		}(n)
+		}(i, n)
 	}
 
 	numOK := 0
@@ -289,12 +296,12 @@ func (pn *paxosNode) DoAccept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptR
 	LOGV.Printf("node %d DoAccept:%d %s %d\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N)
 	replychan := make(chan *paxosrpc.AcceptReply, len(pn.peers))
 
-	for _, n := range pn.peers {
-		go func(peernode Node) {
+	for i, n := range pn.peers {
+		go func(idx int, peernode Node) {
 			r := new(paxosrpc.AcceptReply)
-			peer, err := rpc.DialHTTP("tcp", peernode.HostPort)
+			peer, err := rpcwrapper.DialHTTP("tcp", peernode.HostPort)
 			if err != nil {
-				LOGE.Println("Cannot reach peer " + peernode.HostPort)
+				LOGE.Printf("node %d Cannot reach peer %d:%s\n", pn.nodeID, idx, peernode.HostPort)
 				r.Status = paxosrpc.Reject
 				replychan <- r
 				return
@@ -308,7 +315,7 @@ func (pn *paxosNode) DoAccept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptR
 				replychan <- r
 			}
 			peer.Close()
-		}(n)
+		}(i, n)
 	}
 
 	numOK := 0
@@ -336,12 +343,12 @@ func (pn *paxosNode) DoCommit(args *paxosrpc.CommitArgs) error {
 	LOGV.Printf("node %d DoCommit:%d %s %d\n", pn.nodeID, args.SlotIdx, args.V.ToString(), args.N)
 	replychan := make(chan *paxosrpc.CommitReply, len(pn.peers))
 
-	for _, n := range pn.peers {
-		go func(peernode Node) {
+	for i, n := range pn.peers {
+		go func(idx int, peernode Node) {
 			r := new(paxosrpc.CommitReply)
-			peer, err := rpc.DialHTTP("tcp", peernode.HostPort)
+			peer, err := rpcwrapper.DialHTTP("tcp", peernode.HostPort)
 			if err != nil {
-				LOGE.Println("Cannot reach peer " + peernode.HostPort)
+				LOGE.Printf("node %d Cannot reach peer %d:%s\n", pn.nodeID, idx, peernode.HostPort)
 				r.Status = paxosrpc.Reject
 				replychan <- r
 				return
@@ -355,7 +362,7 @@ func (pn *paxosNode) DoCommit(args *paxosrpc.CommitArgs) error {
 				replychan <- r
 			}
 			peer.Close()
-		}(n)
+		}(i, n)
 	}
 
 	for num := 0; num < pn.numNodes; num++ {
@@ -382,16 +389,17 @@ func (pn *paxosNode) Replicate(command *command.Command) error {
 func CatchUp(pn *paxosNode, from, to int) {
 	for index := from; index < to; index++ {
 		i := 1
-		LOGV.Printf("Try to catch up with slot %d\n", index)
 		c := new(command.Command)
-        c.Type = command.NOP
+		c.Type = command.NOP
+		LOGV.Printf("node %d Try to catch up with slot %d\n", pn.nodeID, index)
 		success, _, num := pn.DoReplicate(c, 0, index)
 		for !success {
-			LOGV.Println("Last Paxos is not success, waiting to try again...")
+			LOGV.Printf("node %d last Paxos is not success, waiting to try again...\n", pn.nodeID)
 			//TODO:maybe do not need to wait
 			time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
-			LOGV.Println("Last Paxos is not success, try again...")
+			LOGV.Printf("node %d last Paxos is not success, try again...\n", pn.nodeID)
 			//i++
+			LOGV.Printf("node %d Try to catch up with slot %d\n", pn.nodeID, index)
 			i = (num/pn.numNodes + 1)
 			success, _, num = pn.DoReplicate(c, i, index)
 
@@ -404,7 +412,7 @@ func CatchUpHandler(pn *paxosNode) {
 	for {
 		gap, ok := <-pn.gapchan
 		if ok {
-			LOGV.Printf("%d\t%d\n", gap.from, gap.to)
+			LOGV.Printf("node %d is trying to catuch up from %d to %d\n", pn.nodeID, gap.from, gap.to)
 			go CatchUp(pn, gap.from, gap.to)
 		} else {
 			break
@@ -515,26 +523,4 @@ func (pn *paxosNode) DumpLog() error {
 	} else {
 		return err
 	}
-}
-
-func (pn *paxosNode) PrepareWrapper(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply, reqDropRate, replyDropRate float64) error {
-	return errors.New("Not implemented.")
-}
-func (pn *paxosNode) AcceptWrapper(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply, reqDropRate, replyDropRate float64) error {
-	return errors.New("Not implemented.")
-}
-func (pn *paxosNode) CommitWrapper(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply, reqDropRate, replyDropRate float64) error {
-	return errors.New("Not implemented.")
-}
-func (pn *paxosNode) DoPrepareWrapper(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply, reqDropRate, replyDropRate float64) error {
-	return errors.New("Not implemented.")
-}
-func (pn *paxosNode) DoAcceptWrapper(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply, reqDropRate, replyDropRate float64) error {
-	return errors.New("Not implemented.")
-}
-func (pn *paxosNode) DoCommitWrapper(args *paxosrpc.CommitArgs, reqDropRate, replyDropRate float64) error {
-	return errors.New("Not implemented.")
-}
-func (pn *paxosNode) ReplicateWrapper(command *command.Command) error {
-	return errors.New("Not implemented.")
 }
