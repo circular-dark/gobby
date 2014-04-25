@@ -2,10 +2,9 @@ package main
 
 import (
 	"fmt"
-    "strconv"
 	"github.com/gobby/src/command"
-	"github.com/gobby/src/config"
 	"github.com/gobby/src/paxos"
+	"strconv"
 	"time"
 )
 
@@ -17,14 +16,11 @@ var done = make(chan struct{})
 
 func fakecallback(index int, c command.Command) {
 	fmt.Printf("\n%d's index %d is %s\n", nid, index, c.ToString())
-	done<-struct{}{}
+	done <- struct{}{}
 }
 
 func main() {
-	n3, err := paxos.NewPaxosNode(config.Nodes[nid].Address,
-		config.Nodes[nid].Port,
-		config.Nodes[nid].NodeID,
-		fakecallback)
+	n3, err := paxos.NewPaxosNode(nid, 3, fakecallback)
 	time.Sleep(5 * time.Second)
 	if err != nil {
 		fmt.Println("Cannot start node.\n")
@@ -33,7 +29,7 @@ func main() {
 	}
 	go func() {
 		for i := 0; i < 2; i++ {
-            c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put}
+			c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put, i}
 			n3.Replicate(&c)
 		}
 	}()
@@ -51,7 +47,7 @@ func main() {
 	if res == 6 {
 		fmt.Printf("\n%d receive all commands\n", nid)
 	} else {
-		fmt.Printf("%d Just break!!!!!\n", res)
+		fmt.Printf("%d Just break %d!!!!!\n", nid, res)
 	}
-    n3.DumpLog()
+	n3.DumpLog()
 }

@@ -3,10 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/gobby/src/command"
-	"github.com/gobby/src/config"
 	"github.com/gobby/src/paxos"
+	"strconv"
 	"time"
-    "strconv"
 )
 
 const (
@@ -21,37 +20,33 @@ func fakecallback(index int, c command.Command) {
 }
 
 func main() {
-	n3, err := paxos.NewPaxosNode(config.Nodes[nid].Address,
-		config.Nodes[nid].Port,
-		config.Nodes[nid].NodeID,
-		fakecallback)
-	time.Sleep(5 * time.Second)
+	n3, err := paxos.NewPaxosNode(nid, 3, fakecallback)
 	if err != nil {
 		fmt.Println("Cannot start node.\n")
 		fmt.Println(err)
 		return
 	}
+	fmt.Println("Pause node.\n")
+	err = n3.Pause()
+	if err != nil {
+		fmt.Println("Cannot Pause node.\n")
+		fmt.Println(err)
+		return
+	}
+	time.Sleep(5 * time.Second)
 	go func() {
-			fmt.Println("Pause node.\n")
-			err = n3.Pause()
-			if err != nil {
-				fmt.Println("Cannot Pause node.\n")
-				fmt.Println(err)
-				return
-			}
-			time.Sleep(3 * time.Second)
-            c := command.Command{strconv.Itoa(nid), strconv.Itoa(0), command.Put}
-			n3.Replicate(&c)
-			time.Sleep(3 * time.Second)
-			fmt.Println("Resume node.\n")
-			err = n3.Resume()
-			if err != nil {
-				fmt.Println("Cannot Resume node.\n")
-				fmt.Println(err)
-				return
-			}
-            c = command.Command{strconv.Itoa(nid), strconv.Itoa(1), command.Put}
-			n3.Replicate(&c)
+		time.Sleep(3 * time.Second)
+		fmt.Println("Resume node.\n")
+		err = n3.Resume()
+		if err != nil {
+			fmt.Println("Cannot Resume node.\n")
+			fmt.Println(err)
+			return
+		}
+		c := command.Command{strconv.Itoa(nid), strconv.Itoa(0), command.Put, 100}
+		n3.Replicate(&c)
+		c = command.Command{strconv.Itoa(nid), strconv.Itoa(1), command.Put, 101}
+		n3.Replicate(&c)
 	}()
 
 	res := 0
@@ -67,7 +62,7 @@ func main() {
 	if res == 6 {
 		fmt.Printf("\n%d receive all commands\n", nid)
 	} else {
-		fmt.Printf("%d Just break!!!!!\n", res)
+		fmt.Printf("%d Just break %d!!!!!\n", nid, res)
 	}
-    n3.DumpLog()
+	n3.DumpLog()
 }

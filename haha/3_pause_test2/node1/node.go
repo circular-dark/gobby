@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"github.com/gobby/src/command"
 	"github.com/gobby/src/paxos"
-	"strconv"
 	"time"
 )
 
 const (
-	nid = 1
+	nid = 2
 )
 
 var done = make(chan struct{})
@@ -21,16 +20,27 @@ func fakecallback(index int, c command.Command) {
 
 func main() {
 	n3, err := paxos.NewPaxosNode(nid, 3, fakecallback)
-	time.Sleep(5 * time.Second)
 	if err != nil {
 		fmt.Println("Cannot start node.\n")
 		fmt.Println(err)
 		return
 	}
+	fmt.Println("Pause node.\n")
+	err = n3.Pause()
+	if err != nil {
+		fmt.Println("Cannot Pause node.\n")
+		fmt.Println(err)
+		return
+	}
+	time.Sleep(5 * time.Second)
 	go func() {
-		for i := 0; i < 2; i++ {
-			c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put, i}
-			n3.Replicate(&c)
+		time.Sleep(3 * time.Second)
+		fmt.Println("Resume node.\n")
+		err = n3.Resume()
+		if err != nil {
+			fmt.Println("Cannot Resume node.\n")
+			fmt.Println(err)
+			return
 		}
 	}()
 

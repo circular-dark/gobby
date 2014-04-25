@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	nid = 1
+	nid = 0
 )
 
 var done = make(chan struct{})
@@ -28,7 +28,10 @@ func main() {
 		return
 	}
 	go func() {
-		for i := 0; i < 2; i++ {
+		for i := 0; i < 3; i++ {
+			if i==2 {
+			  time.Sleep(5 * time.Second)
+			}
 			c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put, i}
 			n3.Replicate(&c)
 		}
@@ -49,5 +52,6 @@ func main() {
 	} else {
 		fmt.Printf("%d Just break %d!!!!!\n", nid, res)
 	}
+	time.Sleep(5 * time.Second)
 	n3.DumpLog()
 }
