@@ -20,9 +20,9 @@ import (
 
 var (
 	LOGE = log.New(os.Stderr, "ERROR", log.Lmicroseconds|log.Lshortfile)
-	/* LOGE = log.New(ioutil.Discard, "ERROR", log.Lmicroseconds|log.Lshortfile) */
+	//LOGE = log.New(ioutil.Discard, "ERROR", log.Lmicroseconds|log.Lshortfile)
 	LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
-	/* LOGV = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile) */
+	//LOGV = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	_ = ioutil.Discard
 )
 
@@ -76,6 +76,8 @@ func NewPaxosNode(nodeID int, numNodes int, callback PaxosCallBack) (PaxosNode, 
         node.peers[i].NodeID = i
 	}
 
+	//file, _ := os.OpenFile(strconv.Itoa(nodeID)+"file.txt", os.O_CREATE|os.O_RDWR, 0666)
+	//LOGV = log.New(file, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	node.commitedCommands = make([]command.Command, 0)
 	node.tempSlots = make(map[int]IndexCommand)
 	node.gapchan = make(chan Gap)
@@ -123,10 +125,8 @@ func (pn *paxosNode) Prepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepare
 			} else { //prepare state
 				ic := IndexCommand{}
 				ic.Index = args.SlotIdx
-				ic.Na = args.N
+				ic.Na = -1
 				ic.Nh = args.N
-				//ic.V = args.V
-				//ic.V.Action = "nop"
 				ic.isAccepted = false
 				ic.isCommited = false
 				pn.tempSlots[args.SlotIdx] = ic
@@ -139,10 +139,8 @@ func (pn *paxosNode) Prepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepare
 	} else { //empty slot
 		ic := IndexCommand{}
 		ic.Index = args.SlotIdx
-		ic.Na = args.N
+		ic.Na = -1
 		ic.Nh = args.N
-		//ic.V = args.V
-		//ic.V.Action = "nop"
 		ic.isAccepted = false
 		ic.isCommited = false
 		pn.tempSlots[args.SlotIdx] = ic
@@ -203,6 +201,7 @@ func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitRep
 	gap := 0
 	if ok && args.N == v.Na && !v.isCommited{
 		v.isCommited = true
+		v.V = args.V //TODO:Is it correct?
 		pn.tempSlots[args.SlotIdx] = v
 
 		//write to log
@@ -231,7 +230,7 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 			r := paxosrpc.PrepareReply{}
 			peer, err := rpc.DialHTTP("tcp", peernode.HostPort)
 			if err != nil {
-				LOGE.Println("Cannot reach peer " + peernode.HostPort)
+				LOGE.Printf("Cannot reach peer %s" + peernode.HostPort, err)
 				r.Status = paxosrpc.Reject
 				replychan <- &r
 				return
@@ -363,9 +362,9 @@ func (pn *paxosNode) Replicate(command *command.Command) error {
 	i := 1
 	_, success, num := pn.DoReplicate(command, 0, -1)
 	for !success {
-		LOGV.Println("Last Paxos is not success, waiting to try again...")
+		LOGV.Printf("node %d last Paxos is not success, waiting to try again...\n", pn.nodeID)
 		time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
-		LOGV.Println("Last Paxos is not success, try again...")
+		LOGV.Printf("node %d last Paxos is not success, try again...\n", pn.nodeID)
 		i = (num/pn.numNodes + 1)
 		_, success, num = pn.DoReplicate(command, i, -1)
 	}
@@ -437,14 +436,14 @@ func (pn *paxosNode) DoReplicate(command *command.Command, iter, index int) (boo
 	//Accept
 	acceptArgs := paxosrpc.AcceptArgs{}
 	acceptArgs.SlotIdx = prepareArgs.SlotIdx
-	acceptArgs.N = prepareReply.Na
 	LOGV.Printf("Before DoAccept:%d %d\n", acceptArgs.SlotIdx, acceptArgs.N)
 	//TODO:need check, maybe wrong
-	if acceptArgs.N == prepareArgs.N {
+	if prepareReply.Na == prepareArgs.N {
 		acceptArgs.V = *command
 	} else {
 		acceptArgs.V = prepareReply.Va
 	}
+	acceptArgs.N = prepareArgs.N
 	acceptReply := paxosrpc.AcceptReply{}
 	pn.DoAccept(&acceptArgs, &acceptReply)
 
@@ -510,4 +509,26 @@ func (pn *paxosNode) DumpLog() error {
     } else {
         return err
     }
+}
+
+func (pn *paxosNode) PrepareWrapper(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply, reqDropRate, replyDropRate float64) error {
+  return errors.New("Not implemented.")
+}
+func (pn *paxosNode) AcceptWrapper(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply, reqDropRate,replyDropRate float64) error{
+  return errors.New("Not implemented.")
+}
+func (pn *paxosNode) CommitWrapper(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitReply, reqDropRate,replyDropRate float64) error{
+  return errors.New("Not implemented.")
+}
+func (pn *paxosNode) DoPrepareWrapper(args *paxosrpc.PrepareArgs, reply *paxosrpc.PrepareReply, reqDropRate,replyDropRate float64) error{
+  return errors.New("Not implemented.")
+}
+func (pn *paxosNode) DoAcceptWrapper(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptReply, reqDropRate,replyDropRate float64) error{
+  return errors.New("Not implemented.")
+}
+func (pn *paxosNode) DoCommitWrapper(args *paxosrpc.CommitArgs, reqDropRate,replyDropRate float64) error{
+  return errors.New("Not implemented.")
+}
+func (pn *paxosNode) ReplicateWrapper(command *command.Command) error{
+  return errors.New("Not implemented.")
 }
