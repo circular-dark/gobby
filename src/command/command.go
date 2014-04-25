@@ -1,14 +1,16 @@
 package command
 
+import (
+    "strconv"
+)
+
 type commandType int
 
 const (
-    Null commandType = iota
-    Put
+    Put commandType = iota
     Get
     Acquire
     Release
-    Bemaster
     NOP
 )
 
@@ -16,22 +18,23 @@ type Command struct {
 	Key string
     Value string
     Type commandType
+    ID int
 }
 
 func (c Command) ToString() string {
     var s string
     switch (c.Type) {
     case Put:
-        s = "Put"
+        s = "[Put"
     case Get:
-        s = "Get"
+        s = "[Get"
     case Acquire:
-        s = "Acquire"
+        s = "[Acquire"
     case Release:
-        s = "Release"
-    case Bemaster:
-        s = "Bemaster"
+        s = "[Release"
+    case NOP:
+        s = "[NOP"
     }
-    s += " " + c.Key + " " + c.Value
+    s += ", ID " + strconv.Itoa(c.ID) + ", " + c.Key + ", " + c.Value + "]"
     return s
 }

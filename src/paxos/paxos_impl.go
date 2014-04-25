@@ -383,8 +383,9 @@ func CatchUp(pn *paxosNode, from, to int) {
 	for index := from; index < to; index++ {
 		i := 1
 		LOGV.Printf("Try to catch up with slot %d\n", index)
-		c := command.Command{"", "", command.NOP}
-		success, _, num := pn.DoReplicate(&c, 0, index)
+		c := new(command.Command)
+        c.Type = command.NOP
+		success, _, num := pn.DoReplicate(c, 0, index)
 		for !success {
 			LOGV.Println("Last Paxos is not success, waiting to try again...")
 			//TODO:maybe do not need to wait
@@ -392,7 +393,7 @@ func CatchUp(pn *paxosNode, from, to int) {
 			LOGV.Println("Last Paxos is not success, try again...")
 			//i++
 			i = (num/pn.numNodes + 1)
-			success, _, num = pn.DoReplicate(&c, i, index)
+			success, _, num = pn.DoReplicate(c, i, index)
 
 		}
 		LOGV.Printf("Catched up with slot %d\n", index)

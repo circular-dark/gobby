@@ -12,39 +12,20 @@ type PutArgs struct {
     Value string
 }
 
-type PutReply struct {
-	Status Status
-}
-
 type GetArgs struct {
 	Key string
-}
-
-type GetReply struct {
-	Status Status
-    Value string
 }
 
 type AquireArgs struct {
 	Key string
 }
 
-type AquireReply struct {
-	Status Status
-}
-
 type ReleaseArgs struct {
 	Key string
+    Lockstamp string
 }
 
-type ReleaseReply struct {
+type ChubbyReply struct {
 	Status Status
-}
-
-type GetMasterArgs struct {
-}
-
-type GetMasterReply struct {
-	Status Status
-    Hostport string
+    Value string
 }

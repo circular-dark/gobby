@@ -1,11 +1,10 @@
 package chubbyrpc
 
 type RemoteChubbyServer interface {
-	Put(args *PutArgs, reply *PutReply) error
-	Get(args *GetArgs, reply *GetReply) error
-	Aquire(args *AquireArgs, reply *AquireReply) (bool, error)
-	Release(args *ReleaseArgs, reply *ReleaseReply) error
-    GetMasterHostport(args *GetMasterArgs, reply *GetMasterReply) error
+	Put(args *PutArgs, reply *ChubbyReply) error
+	Get(args *GetArgs, reply *ChubbyReply) error
+	Aquire(args *AquireArgs, reply *ChubbyReply) error
+	Release(args *ReleaseArgs, reply *ChubbyReply) error
 }
 
 type ChubbyServer struct {
