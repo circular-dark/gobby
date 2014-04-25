@@ -57,6 +57,8 @@ type paxosNode struct {
 	callback PaxosCallBack
 	gapchan  chan Gap
 
+    isMaster bool
+
 	listener *net.Listener
 }
 
@@ -69,6 +71,7 @@ func NewPaxosNode(nodeID int, numNodes int, callback PaxosCallBack) (PaxosNode, 
 	node.numNodes = numNodes
 	node.addrport = config.Nodes[nodeID].Address + ":" + strconv.Itoa(node.port)
 	node.callback = callback
+    node.isMaster = false
 
 	node.peers = make([]Node, node.numNodes)
 	for i := 0; i < numNodes; i++ {
@@ -264,8 +267,8 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 		}
 	}
 	if reply.Na == -1 {
-	  reply.Na =args.N
-	  reply.Va=args.V
+        reply.Na = args.N
+        reply.Va = args.V
 	}
 	LOGV.Printf("node %d DoPrepare %d result:%s %d[%dOK %dRej]\n", pn.nodeID, args.SlotIdx, reply.Va.ToString(), reply.Na, numOK, numRej)
 
@@ -387,7 +390,6 @@ func CatchUp(pn *paxosNode, from, to int) {
 			//i++
 			i = (num/pn.numNodes + 1)
 			success, _, num = pn.DoReplicate(c, i, index)
-
 		}
 		LOGV.Printf("Catched up with slot %d\n", index)
 	}
