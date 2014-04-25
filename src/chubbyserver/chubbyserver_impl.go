@@ -4,6 +4,7 @@ import (
     "sync"
     "strconv"
     "time"
+    "net/rpc"
     "github.com/gobby/src/rpc/chubbyrpc"
     "github.com/gobby/src/paxos"
     "github.com/gobby/src/command"
@@ -34,6 +35,11 @@ func NewChubbyServer(nodeID int, numNodes int) (Chubbyserver, error) {
         return nil, err
     } else {
         server.paxosnode = node
+    }
+
+	if err := rpc.RegisterName("ChubbyServer", chubbyrpc.Wrap(server)); err != nil {
+		return nil, err
+	} else {
         return server, nil
     }
 }
