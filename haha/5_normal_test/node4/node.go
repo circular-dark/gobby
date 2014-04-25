@@ -9,11 +9,11 @@ import (
 )
 
 const (
-    nid = 1
-    numNodes = 3
+    nid = 3
+    numNodes = 5
 )
 
-var done = make(chan struct{}, 150)
+var done = make(chan struct{}, 250)
 
 func fakecallback(index int, c command.Command) {
     fmt.Printf("\n%d's index %d is %s\n", nid, index, c.ToString())
@@ -33,7 +33,7 @@ func main() {
         c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put, i}
         node.Replicate(&c)
     }
-	for res := 0; res < 150; res++ {
+	for res := 0; res < 250; res++ {
 		_, ok := <-done
 		if !ok {
 	        break

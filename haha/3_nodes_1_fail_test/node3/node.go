@@ -31,7 +31,7 @@ func main() {
 	time.Sleep(5 * time.Second)
 
     for i := 0; i < 2; i++ {
-        c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put}
+        c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put, i}
         node.Replicate(&c)
     }
 
