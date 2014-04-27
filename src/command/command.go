@@ -19,6 +19,7 @@ type Command struct {
     Value string
     Type commandType
     ID int
+    AddrPort string
 }
 
 func (c Command) ToString() string {
@@ -35,6 +36,6 @@ func (c Command) ToString() string {
     case NOP:
         s = "[NOP"
     }
-    s += ", ID " + strconv.Itoa(c.ID) + ", " + c.Key + ", " + c.Value + "]"
+    s += ", ID " + strconv.Itoa(c.ID) + ", " + c.Key + ", " + c.Value + "] from " + c.AddrPort
     return s
 }

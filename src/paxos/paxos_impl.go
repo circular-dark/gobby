@@ -22,10 +22,10 @@ import (
 var (
 	LOGE = log.New(os.Stderr, "ERROR", log.Lmicroseconds|log.Lshortfile)
 	//LOGE = log.New(ioutil.Discard, "ERROR", log.Lmicroseconds|log.Lshortfile)
-	LOGV  = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	//LOGV2 = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	LOGV2 = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
-	_ = ioutil.Discard
+	_     = ioutil.Discard
 )
 
 //TODO:move this to paxosrpc, in order to implement dynamically add node
@@ -205,7 +205,7 @@ func (pn *paxosNode) Commit(args *paxosrpc.CommitArgs, reply *paxosrpc.CommitRep
 	pn.cmdMutex.Lock()
 	v, ok := pn.tempSlots[args.SlotIdx]
 	gap := 0
-	if ok && args.N == v.Na && !v.isCommited {
+	if !ok || (ok && !v.isCommited) {
 		//if !ok || !v.isCommited {
 		if !ok {
 			v = IndexCommand{}
@@ -374,13 +374,31 @@ func (pn *paxosNode) DoCommit(args *paxosrpc.CommitArgs) error {
 
 func (pn *paxosNode) Replicate(command *command.Command) error {
 	i := 1
-	_, success, num := pn.DoReplicate(command, 0, -1)
+	command.AddrPort = pn.addrport
+	LOGV2.Printf("node %d get lock in DoReplicate()\n", pn.nodeID)
+	pn.cmdMutex.Lock()
+	index := len(pn.commitedCommands)
+	LOGV.Printf("in replicate, cur len %d\n", index)
+	LOGV2.Printf("node %d release lock in DoReplicate()\n", pn.nodeID)
+	pn.cmdMutex.Unlock()
+	_, success, num := pn.DoReplicate(command, 0, index)
 	for !success {
 		LOGV.Printf("node %d last Paxos is not success, waiting to try again...\n", pn.nodeID)
 		time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
 		LOGV.Printf("node %d last Paxos is not success, try again...\n", pn.nodeID)
+		LOGV2.Printf("node %d get lock in DoReplicate()\n", pn.nodeID)
+		pn.cmdMutex.Lock()
+		length := len(pn.commitedCommands)
+		LOGV.Printf("in retry, cur len %d\n", index)
+		LOGV2.Printf("node %d release lock in DoReplicate()\n", pn.nodeID)
+		pn.cmdMutex.Unlock()
+		if index < length && pn.commitedCommands[index].AddrPort == pn.addrport { // the slot has been commited && it is the current command proposed by other nodes with higher n
+		//LOGV.Printf("node %d slot %d need no retry, since other nodes commited %s\n", pn.nodeID, index, pn.commitedCommands[index].ToString())
+			return nil
+		}
+		index = length
 		i = (num/pn.numNodes + 1)
-		_, success, num = pn.DoReplicate(command, i, -1)
+		_, success, num = pn.DoReplicate(command, i, index)
 	}
 	return nil
 }
@@ -430,7 +448,7 @@ func CatchUpHandler(pn *paxosNode) {
 func (pn *paxosNode) DoReplicate(command *command.Command, iter, index int) (bool, bool, int) {
 	//Prepare
 	prepareArgs := paxosrpc.PrepareArgs{}
-	if index == -1 {
+	/*if index == -1 {
 		LOGV2.Printf("node %d get lock in DoReplicate()\n", pn.nodeID)
 		pn.cmdMutex.Lock()
 		prepareArgs.SlotIdx = len(pn.commitedCommands)
@@ -438,7 +456,8 @@ func (pn *paxosNode) DoReplicate(command *command.Command, iter, index int) (boo
 		pn.cmdMutex.Unlock()
 	} else {
 		prepareArgs.SlotIdx = index
-	}
+	}*/
+	prepareArgs.SlotIdx = index
 	prepareArgs.N = pn.nodeID + iter*pn.numNodes
 	prepareArgs.V = *command
 
