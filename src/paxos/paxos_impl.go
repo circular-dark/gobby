@@ -53,8 +53,10 @@ type paxosNode struct {
 	peers            []Node               //including itself
 	commitedCommands []command.Command    //Log in memory
 	tempSlots        map[int]IndexCommand //CommandSlotIndex -> Na
+	catchupCounter int //Used to indicate how many catchup routine is running. And a "master" node should have no catchup routine for read optimization
 
 	cmdMutex sync.Mutex
+	catchupMutex sync.Mutex //Lock of catchup counter
 
 	callback PaxosCallBack
 	gapchan  chan Gap
@@ -70,6 +72,7 @@ func NewPaxosNode(nodeID int, numNodes int, callback PaxosCallBack) (PaxosNode, 
 	node.port = config.Nodes[nodeID].Port
 	node.numNodes = numNodes
 	node.addrport = config.Nodes[nodeID].Address + ":" + strconv.Itoa(node.port)
+	node.catchupCounter = 0
 	node.callback = callback
 
 	node.peers = make([]Node, node.numNodes)
@@ -405,6 +408,9 @@ func (pn *paxosNode) Replicate(command *command.Command) error {
 
 //Use NOP to detect the gap slots [from, to)
 func CatchUp(pn *paxosNode, from, to int) {
+	pn.catchupMutex.Lock()
+	pn.catchupCounter++
+	pn.catchupMutex.Unlock()
 	for index := from; index < to; index++ {
 		i := 1
 		c := new(command.Command)
@@ -424,6 +430,9 @@ func CatchUp(pn *paxosNode, from, to int) {
 		}
 		LOGV.Printf("Catched up with slot %d\n", index)
 	}
+	pn.catchupMutex.Lock()
+	pn.catchupCounter--
+	pn.catchupMutex.Unlock()
 }
 
 func CatchUpHandler(pn *paxosNode) {
