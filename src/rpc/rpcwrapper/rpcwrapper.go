@@ -7,14 +7,16 @@ import (
 	"log"
 	"math/rand"
 	"net/rpc"
-	"os"
+	//"os"
 	"sync/atomic"
+	"io/ioutil"
 )
 
 var (
 	forwardDropRate  uint32 = 0 //The drop rate of sending request
 	backwardDropRate uint32 = 0 //The drop rate of recieving request
-	LOGV                    = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds)
+	//LOGV                    = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds)
+	LOGV                    = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds)
 )
 
 type Client struct {

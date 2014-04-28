@@ -1,5 +1,5 @@
 d = {}
-with open('output') as f:
+with open('output.txt') as f:
   for line in f:
     if line.strip():
       l=line.strip().split()
@@ -15,4 +15,7 @@ with open('output') as f:
 for n in d:
   if len(d[n])< 50:
     rl = sorted(list(d[n]))
-    print n,rl
+    for i, v in enumerate(rl):
+      if i!=v:
+	print n,v
+	break

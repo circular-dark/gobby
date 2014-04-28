@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	LOGE = log.New(os.Stderr, "ERROR", log.Lmicroseconds|log.Lshortfile)
-	//LOGE = log.New(ioutil.Discard, "ERROR", log.Lmicroseconds|log.Lshortfile)
+	//LOGE = log.New(os.Stderr, "ERROR", log.Lmicroseconds|log.Lshortfile)
+	LOGE = log.New(ioutil.Discard, "ERROR", log.Lmicroseconds|log.Lshortfile)
 	LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	//LOGV2 = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
 	LOGV2 = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
@@ -53,9 +53,9 @@ type paxosNode struct {
 	peers            []Node               //including itself
 	commitedCommands []command.Command    //Log in memory
 	tempSlots        map[int]IndexCommand //CommandSlotIndex -> Na
-	catchupCounter int //Used to indicate how many catchup routine is running. And a "master" node should have no catchup routine for read optimization
+	catchupCounter   int                  //Used to indicate how many catchup routine is running. And a "master" node should have no catchup routine for read optimization
 
-	cmdMutex sync.Mutex
+	cmdMutex     sync.Mutex
 	catchupMutex sync.Mutex //Lock of catchup counter
 
 	callback PaxosCallBack
@@ -245,23 +245,29 @@ func (pn *paxosNode) DoPrepare(args *paxosrpc.PrepareArgs, reply *paxosrpc.Prepa
 	for i, n := range pn.peers {
 		go func(idx int, peernode Node) {
 			r := paxosrpc.PrepareReply{}
-			peer, err := rpcwrapper.DialHTTP("tcp", peernode.HostPort)
-			if err != nil {
-				LOGE.Printf("node %d Cannot reach peer %d:%s\n", pn.nodeID, idx, peernode.HostPort)
-				r.Status = paxosrpc.Reject
+			//if localhost, call locally
+			if peernode.HostPort == pn.addrport {
+				pn.Prepare(args, &r)
 				replychan <- &r
-				return
+			} else { //else, call rpc
+				peer, err := rpcwrapper.DialHTTP("tcp", peernode.HostPort)
+				if err != nil {
+					LOGE.Printf("node %d Cannot reach peer %d:%s\n", pn.nodeID, idx, peernode.HostPort)
+					r.Status = paxosrpc.Reject
+					replychan <- &r
+					return
+				}
+				prepareCall := peer.Go("PaxosNode.Prepare", args, &r, nil)
+				select {
+				case _, _ = <-prepareCall.Done:
+					replychan <- &r
+				case _ = <-time.After(time.Second):
+					//TODO: how to handle timeout correctly?
+					r.Status = paxosrpc.Reject
+					replychan <- &r
+				}
+				peer.Close()
 			}
-			prepareCall := peer.Go("PaxosNode.Prepare", args, &r, nil)
-			select {
-			case _, _ = <-prepareCall.Done:
-				replychan <- &r
-			case _ = <-time.After(time.Second):
-				//TODO: how to handle timeout correctly?
-				r.Status = paxosrpc.Reject
-				replychan <- &r
-			}
-			peer.Close()
 		}(i, n)
 	}
 
@@ -302,22 +308,27 @@ func (pn *paxosNode) DoAccept(args *paxosrpc.AcceptArgs, reply *paxosrpc.AcceptR
 	for i, n := range pn.peers {
 		go func(idx int, peernode Node) {
 			r := new(paxosrpc.AcceptReply)
-			peer, err := rpcwrapper.DialHTTP("tcp", peernode.HostPort)
-			if err != nil {
-				LOGE.Printf("node %d Cannot reach peer %d:%s\n", pn.nodeID, idx, peernode.HostPort)
-				r.Status = paxosrpc.Reject
+			if peernode.HostPort == pn.addrport {
+				pn.Accept(args, r)
 				replychan <- r
-				return
+			} else {
+				peer, err := rpcwrapper.DialHTTP("tcp", peernode.HostPort)
+				if err != nil {
+					LOGE.Printf("node %d Cannot reach peer %d:%s\n", pn.nodeID, idx, peernode.HostPort)
+					r.Status = paxosrpc.Reject
+					replychan <- r
+					return
+				}
+				prepareCall := peer.Go("PaxosNode.Accept", args, r, nil)
+				select {
+				case _, _ = <-prepareCall.Done:
+					replychan <- r
+				case _ = <-time.After(time.Second):
+					r.Status = paxosrpc.Reject
+					replychan <- r
+				}
+				peer.Close()
 			}
-			prepareCall := peer.Go("PaxosNode.Accept", args, r, nil)
-			select {
-			case _, _ = <-prepareCall.Done:
-				replychan <- r
-			case _ = <-time.After(time.Second):
-				r.Status = paxosrpc.Reject
-				replychan <- r
-			}
-			peer.Close()
 		}(i, n)
 	}
 
@@ -349,22 +360,27 @@ func (pn *paxosNode) DoCommit(args *paxosrpc.CommitArgs) error {
 	for i, n := range pn.peers {
 		go func(idx int, peernode Node) {
 			r := new(paxosrpc.CommitReply)
-			peer, err := rpcwrapper.DialHTTP("tcp", peernode.HostPort)
-			if err != nil {
-				LOGE.Printf("node %d Cannot reach peer %d:%s\n", pn.nodeID, idx, peernode.HostPort)
-				r.Status = paxosrpc.Reject
+			if peernode.HostPort == pn.addrport {
+				pn.Commit(args, r)
 				replychan <- r
-				return
+			} else {
+				peer, err := rpcwrapper.DialHTTP("tcp", peernode.HostPort)
+				if err != nil {
+					LOGE.Printf("node %d Cannot reach peer %d:%s\n", pn.nodeID, idx, peernode.HostPort)
+					r.Status = paxosrpc.Reject
+					replychan <- r
+					return
+				}
+				prepareCall := peer.Go("PaxosNode.Commit", args, r, nil)
+				select {
+				case <-prepareCall.Done:
+					replychan <- r
+				case <-time.After(time.Second):
+					r.Status = paxosrpc.Reject
+					replychan <- r
+				}
+				peer.Close()
 			}
-			prepareCall := peer.Go("PaxosNode.Commit", args, r, nil)
-			select {
-			case <-prepareCall.Done:
-				replychan <- r
-			case <-time.After(time.Second):
-				r.Status = paxosrpc.Reject
-				replychan <- r
-			}
-			peer.Close()
 		}(i, n)
 	}
 
@@ -388,19 +404,30 @@ func (pn *paxosNode) Replicate(command *command.Command) error {
 	for !success {
 		LOGV.Printf("node %d last Paxos is not success, waiting to try again...\n", pn.nodeID)
 		time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
-		LOGV.Printf("node %d last Paxos is not success, try again...\n", pn.nodeID)
+		LOGV.Printf("node %d last Paxos slot %d is not success, try again... iter:%d\n", pn.nodeID, index, i)
 		LOGV2.Printf("node %d get lock in DoReplicate()\n", pn.nodeID)
 		pn.cmdMutex.Lock()
 		length := len(pn.commitedCommands)
 		LOGV.Printf("in retry, cur len %d\n", index)
 		LOGV2.Printf("node %d release lock in DoReplicate()\n", pn.nodeID)
 		pn.cmdMutex.Unlock()
-		if index < length && pn.commitedCommands[index].AddrPort == pn.addrport { // the slot has been commited && it is the current command proposed by other nodes with higher n
-		//LOGV.Printf("node %d slot %d need no retry, since other nodes commited %s\n", pn.nodeID, index, pn.commitedCommands[index].ToString())
-			return nil
+		if index < length { // the slot has been passed
+			//LOGV.Printf("node %d slot %d need no retry, since other nodes commited %s\n", pn.nodeID, index, pn.commitedCommands[index].ToString())
+			if pn.commitedCommands[index].AddrPort == "" {
+				//empty slot here, index keeps the same, iter increases
+				i = (num/pn.numNodes + 1)
+			} else if pn.commitedCommands[index].AddrPort == pn.addrport {
+				//Has commited by other nodes, just return
+				return nil
+			} else {
+				//the slot has been occupied by other node's command
+				//try to contend to a new slot
+				index = length
+				i = 0
+			}
+		} else {
+		    i = (num/pn.numNodes + 1)
 		}
-		index = length
-		i = (num/pn.numNodes + 1)
 		_, success, num = pn.DoReplicate(command, i, index)
 	}
 	return nil
