@@ -426,7 +426,6 @@ func CatchUp(pn *paxosNode, from, to int) {
 			LOGV.Printf("node %d Try to catch up with slot %d\n", pn.nodeID, index)
 			i = (num/pn.numNodes + 1)
 			success, _, num = pn.DoReplicate(c, i, index)
-
 		}
 		LOGV.Printf("Catched up with slot %d\n", index)
 	}

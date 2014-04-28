@@ -1,3 +1,4 @@
 haha/**/dumplog_*
 *.txt
 *.swp
+paxos_test/**/dumplog_*

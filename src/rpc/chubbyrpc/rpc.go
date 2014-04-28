@@ -11,6 +11,6 @@ type ChubbyServer struct {
 	RemoteChubbyServer
 }
 
-func Warp(t RemoteChubbyServer) RemoteChubbyServer {
+func Wrap(t RemoteChubbyServer) RemoteChubbyServer {
 	return &ChubbyServer{t}
 }
