@@ -426,7 +426,7 @@ func (pn *paxosNode) Replicate(command *command.Command) error {
 				i = 0
 			}
 		} else {
-		    i = (num/pn.numNodes + 1)
+			i = (num/pn.numNodes + 1)
 		}
 		_, success, num = pn.DoReplicate(command, i, index)
 	}
@@ -501,7 +501,11 @@ func (pn *paxosNode) DoReplicate(command *command.Command, iter, index int) (boo
 
 	pn.DoPrepare(&prepareArgs, &prepareReply)
 	if prepareReply.Status == paxosrpc.Reject {
-		return false, false, prepareReply.Na
+		if prepareReply.Na > prepareArgs.N {
+			return false, false, prepareReply.Na
+		} else {
+			return false, false, prepareArgs.N
+		}
 	}
 
 	//Accept
