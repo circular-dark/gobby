@@ -29,7 +29,7 @@ func main() {
 	}
 	go func() {
 		for i := 0; i < 2; i++ {
-			c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put, i}
+			c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put, i, ""}
 			n3.Replicate(&c)
 		}
 	}()

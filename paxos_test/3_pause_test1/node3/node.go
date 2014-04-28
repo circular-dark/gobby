@@ -3,13 +3,14 @@ package main
 import (
 	"fmt"
 	"github.com/gobby/src/command"
-	"github.com/gobby/src/config"
 	"github.com/gobby/src/paxos"
 	"time"
+"strconv"
 )
 
 const (
 	nid = 1
+	numNodes = 3
 )
 
 var done = make(chan struct{})
@@ -20,9 +21,8 @@ func fakecallback(index int, c command.Command) {
 }
 
 func main() {
-	n3, err := paxos.NewPaxosNode(config.Nodes[nid].Address,
-		config.Nodes[nid].Port,
-		config.Nodes[nid].NodeID,
+	n3, err := paxos.NewPaxosNode(nid,
+		numNodes,
 		fakecallback)
 	time.Sleep(5 * time.Second)
 	if err != nil {
@@ -32,13 +32,13 @@ func main() {
 	}
 	go func() {
 		for i := 0; i < 2; i++ {
-			c := command.Command{"777", "888", command.Put}
+			c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put,i,""}
 			n3.Replicate(&c)
 		}
 	}()
 
 	res := 0
-	for res < 5 {
+	for res < 6 {
 		_, ok := <-done
 		if ok {
 			res++
@@ -47,7 +47,7 @@ func main() {
 		}
 	}
 
-	if res == 5 {
+	if res == 6 {
 		fmt.Printf("\n%d receive all commands\n", nid)
 	} else {
 		fmt.Printf("%d Just break!!!!!\n", res)

@@ -43,9 +43,9 @@ func main() {
 			fmt.Println(err)
 			return
 		}
-		c := command.Command{strconv.Itoa(nid), strconv.Itoa(0), command.Put, 100}
+		c := command.Command{strconv.Itoa(nid), strconv.Itoa(0), command.Put, 100, ""}
 		n3.Replicate(&c)
-		c = command.Command{strconv.Itoa(nid), strconv.Itoa(1), command.Put, 101}
+		c = command.Command{strconv.Itoa(nid), strconv.Itoa(1), command.Put, 101, ""}
 		n3.Replicate(&c)
 	}()
 
