@@ -8,7 +8,7 @@ import (
 
 func main() {
 	//TODO:need modify NewClient parameter, now is the numNodes
-	client, err := chubbyclient.NewClient(0, 1)
+	client, err := chubbyclient.NewClient(2, 1)
 	if err != nil {
 		fmt.Println("wrong")
 	}

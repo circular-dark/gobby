@@ -21,7 +21,7 @@ func main() {
 		ts, err = client.Acquire("test")
 	}
 	fmt.Println("Client2 Aquires lock " + ts)
-	time.Sleep(3)
+	time.Sleep(10 * time.Second)
 	fmt.Println("Client2 Releases lock " + ts)
 	client.Release("test", ts)
 }
