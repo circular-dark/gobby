@@ -98,9 +98,10 @@ func (client *chubbyclient) Acquire(key string) (string, error) {
     }
 }
 
-func (client *chubbyclient) Release(key string) error {
+func (client *chubbyclient) Release(key, lockstamp string) error {
     args := new(chubbyrpc.ReleaseArgs)
     args.Key = key
+    args.Lockstamp = lockstamp
     //reply := new(chubbyrpc.ReleaseReply)
     reply := new(chubbyrpc.ChubbyReply)
     if err := client.masterConn.Call("ChubbyServer.Release", args, reply); err == nil {
