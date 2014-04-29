@@ -2,6 +2,7 @@ package paxos
 
 import "github.com/gobby/src/rpc/paxosrpc"
 import "github.com/gobby/src/command"
+import "net"
 
 type PaxosNode interface {
 	//Paxos protocal prepare rpc, called by proposer
@@ -31,6 +32,7 @@ type PaxosNode interface {
 	//Pause the Node, it does not receive any rpc calls. But it is still able to
 	//call other node. So it is the tester's reposibility to make sure not to call
 	//others so that the tester can simulate the network error for this node.
+	SetListener(listener *net.Listener)
 	Pause() error
 	Resume() error
 

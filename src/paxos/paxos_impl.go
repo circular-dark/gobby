@@ -88,19 +88,19 @@ func NewPaxosNode(nodeID int, numNodes int, callback PaxosCallBack) (PaxosNode, 
 	node.gapchan = make(chan Gap)
 
 	//rpc
-	LOGV.Printf("Node %d tried listen on tcp:%d.\n", node.nodeID, node.port)
+	/*LOGV.Printf("Node %d tried listen on tcp:%d.\n", node.nodeID, node.port)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", node.port))
 	if err != nil {
 		return nil, err
-	}
-	LOGV.Printf("Node %d tried register to tcp:%d.\n", node.nodeID, node.port)
-	err = rpc.RegisterName("PaxosNode", paxosrpc.Wrap(&node))
+	}*/
+	//LOGV.Printf("Node %d tried register to tcp:%d.\n", node.nodeID, node.port)
+	err := rpc.RegisterName("PaxosNode", paxosrpc.Wrap(&node))
 	if err != nil {
 		return nil, err
 	}
-	node.listener = &listener
-	rpc.HandleHTTP()
-	go http.Serve(*node.listener, nil)
+	//node.listener = &listener
+	//rpc.HandleHTTP()
+	//go http.Serve(*node.listener, nil)
 	go CatchUpHandler(&node)
 
 	rand.Seed(time.Now().UTC().UnixNano())
@@ -581,4 +581,8 @@ func (pn *paxosNode) DumpLog() error {
 	} else {
 		return err
 	}
+}
+
+func (pn *paxosNode) SetListener(listener *net.Listener) {
+  pn.listener = listener
 }

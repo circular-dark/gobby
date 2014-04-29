@@ -3,13 +3,18 @@ package main
 import (
 	"fmt"
 	"github.com/gobby/src/command"
+	"github.com/gobby/src/config"
 	"github.com/gobby/src/paxos"
+	"net"
+	"net/http"
+	"net/rpc"
 	"strconv"
 	"time"
 )
 
 const (
-	nid = 1
+	nid      = 1
+	numNodes = 3
 )
 
 var done = make(chan struct{})
@@ -20,17 +25,26 @@ func fakecallback(index int, c command.Command) {
 }
 
 func main() {
-	n3, err := paxos.NewPaxosNode(nid, 3, fakecallback)
-	time.Sleep(5 * time.Second)
+	node, err := paxos.NewPaxosNode(nid, 3, fakecallback)
 	if err != nil {
 		fmt.Println("Cannot start node.\n")
 		fmt.Println(err)
 		return
 	}
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Nodes[nid].Port))
+	if err != nil {
+		fmt.Printf("node %d cannot listen to port:%s\n", err)
+		return
+	}
+	node.SetListener(&listener)
+	rpc.HandleHTTP()
+	go http.Serve(listener, nil)
+
+	time.Sleep(5 * time.Second)
 	go func() {
 		for i := 0; i < 2; i++ {
 			c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put, i, ""}
-			n3.Replicate(&c)
+			node.Replicate(&c)
 		}
 	}()
 
@@ -49,5 +63,5 @@ func main() {
 	} else {
 		fmt.Printf("%d Just break %d!!!!!\n", nid, res)
 	}
-	n3.DumpLog()
+	node.DumpLog()
 }
