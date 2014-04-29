@@ -102,7 +102,7 @@ func (server *chubbyserver) Get(args *chubbyrpc.GetArgs, reply *chubbyrpc.Chubby
     return nil
 }
 
-func (server *chubbyserver) Aquire(args *chubbyrpc.AquireArgs, reply *chubbyrpc.ChubbyReply) error {
+func (server *chubbyserver) Acquire(args *chubbyrpc.AcquireArgs, reply *chubbyrpc.ChubbyReply) error {
     server.lock.Lock()
     c := &command.Command{
         Key: args.Key,

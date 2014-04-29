@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-  client,err := chubbyclient.NewClient(1)
+  client,err := chubbyclient.NewClient(-1, 1)
   if err!=nil{
     fmt.Println("wrong")
   }
@@ -19,8 +19,9 @@ func main() {
     fmt.Println(err)
   }
   fmt.Println(s)
-  fmt.Println("Client Aquire test")
-  client.Aquire("test")
+  fmt.Println("Client Acquire test")
+  ts, err := client.Acquire("test")
+  fmt.Printf("Client Acquire test, get %s\n", ts)
   fmt.Println("Client Release test")
   client.Release("test")
 }

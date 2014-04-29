@@ -3,7 +3,7 @@ package chubbyrpc
 type RemoteChubbyServer interface {
 	Put(args *PutArgs, reply *ChubbyReply) error
 	Get(args *GetArgs, reply *ChubbyReply) error
-	Aquire(args *AquireArgs, reply *ChubbyReply) error
+	Acquire(args *AcquireArgs, reply *ChubbyReply) error
 	Release(args *ReleaseArgs, reply *ChubbyReply) error
 }
 

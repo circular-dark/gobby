@@ -3,6 +3,6 @@ package chubbyclient
 type Chubbyclient interface {
     Put(key, value string) error
     Get(key string) (string, error)
-    Aquire(key string) error
+    Acquire(key string) (string,error)
     Release(key string) error
 }

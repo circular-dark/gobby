@@ -16,7 +16,7 @@ type GetArgs struct {
 	Key string
 }
 
-type AquireArgs struct {
+type AcquireArgs struct {
 	Key string
 }
 

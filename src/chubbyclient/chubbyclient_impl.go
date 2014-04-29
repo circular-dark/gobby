@@ -16,7 +16,7 @@ type chubbyclient struct {
     masterConn *rpc.Client
 }
 
-func NewClient(numNodes int) (Chubbyclient, error) {
+func NewClient(numNodes int, idx int) (Chubbyclient, error) {
     client := new(chubbyclient)
     //TODO:How to get master?
     /*for _, hostport := range config.Hostports {
@@ -29,6 +29,15 @@ func NewClient(numNodes int) (Chubbyclient, error) {
             }
         }
     }*/
+
+    if idx >= 0 {
+    client.masterHostPort = config.Nodes[idx].Address + ":" + strconv.Itoa(config.Nodes[idx].Port)
+
+    if conn, err := rpc.DialHTTP("tcp", client.masterHostPort); err == nil {
+        client.masterConn = conn
+    }
+    return client, nil
+    }
 
     //Now random choose one
     i := rand.Int31n(int32(numNodes))
@@ -73,19 +82,19 @@ func (client *chubbyclient) Get(key string) (string, error) {
     }
 }
 
-func (client *chubbyclient) Aquire(key string) error {
-    args := new(chubbyrpc.AquireArgs)
+func (client *chubbyclient) Acquire(key string) (string, error) {
+    args := new(chubbyrpc.AcquireArgs)
     args.Key = key
     //reply := new(chubbyrpc.AquireReply)
     reply := new(chubbyrpc.ChubbyReply)
-    if err := client.masterConn.Call("ChubbyServer.Aquire", args, reply); err == nil {
+    if err := client.masterConn.Call("ChubbyServer.Acquire", args, reply); err == nil {
         if reply.Status == chubbyrpc.OK {
-            return nil
+            return reply.Value, nil
         } else {
-            return errors.New("Aquire error")
+            return reply.Value, errors.New("Acquire error")
         }
     } else {
-        return err
+        return reply.Value, err
     }
 }
 

@@ -7,7 +7,7 @@ import (
 
 func main() {
   //TODO:need modify NewClient parameter, now is the numNodes
-  client,err := chubbyclient.NewClient(1)
+  client,err := chubbyclient.NewClient(-1, 1)
   if err!=nil{
     fmt.Println("wrong")
   }
@@ -21,7 +21,8 @@ func main() {
   }
   fmt.Println(s)
   fmt.Println("Client Aquire test")
-  client.Aquire("test")
+  ts,err :=client.Acquire("test")
+  fmt.Println("Client Aquire lock "+ts)
   fmt.Println("Client Release test")
   client.Release("test")
 }
