@@ -11,8 +11,8 @@ func main() {
 	client, err := chubbyclient.NewClient(1, 1)
 	if err != nil {
 		fmt.Println("wrong")
+		return
 	}
-	time.Sleep(3)
 	fmt.Println("Client2 Aquire test")
 	ts, err := client.Acquire("test")
 	for err != nil {

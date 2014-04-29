@@ -3,7 +3,7 @@ package chubbyserver
 import (
     "sync"
     "strconv"
-    "time"
+//    "time"
     "net/rpc"
     "github.com/gobby/src/rpc/chubbyrpc"
     "github.com/gobby/src/paxos"
@@ -216,7 +216,7 @@ paxos.LOGV.Println("in executeCommand:handle put done")
 		}
                 } else {
                     st.locked = true
-                    st.lockstamp = strconv.FormatInt(time.Now().UnixNano(), 10)
+                    st.lockstamp = c.Value
 		if replyCh != nil {
                     replyCh <- &chubbyrpc.ChubbyReply{
                         Status: chubbyrpc.OK,

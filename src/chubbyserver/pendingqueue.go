@@ -5,6 +5,8 @@ import (
 	"github.com/gobby/src/command"
 	"github.com/gobby/src/paxos"
 	"sync"
+"time"
+"strconv"
 //"fmt"
 )
 
@@ -25,6 +27,9 @@ func (q *Queue) Enqueue(c *command.Command) {
 //fmt.Println("Enqueue command:"+c.ToString())
 	q.lock.Lock()
 	//q.cond.L.Lock()
+if c.Type == command.Acquire {
+  c.Value = strconv.FormatInt(time.Now().UnixNano(), 10)
+}
 	q.l.PushBack(c)
 	q.lock.Unlock()
 	//q.cond.L.Unlock()
