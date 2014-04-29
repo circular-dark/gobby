@@ -28,6 +28,7 @@ type chubbyserver struct {
     lock sync.Mutex
     paxosnode paxos.PaxosNode
     leasenode lease.LeaseNode
+    pending *Queue
 }
 
 func NewChubbyServer(nodeID int, numNodes int) (Chubbyserver, error) {
@@ -37,6 +38,7 @@ func NewChubbyServer(nodeID int, numNodes int) (Chubbyserver, error) {
     server.commandLog = make([]*command.Command, 0)
     server.nextIndex = 0
     server.replyChs = make(map[int]chan *chubbyrpc.ChubbyReply)
+    server.pending = NewQueue()
     if pnode, err := paxos.NewPaxosNode(nodeID, numNodes, server.getCommand); err != nil {
         return nil, err
     } else {
@@ -51,9 +53,10 @@ func NewChubbyServer(nodeID int, numNodes int) (Chubbyserver, error) {
 	if err := rpc.RegisterName("ChubbyServer", chubbyrpc.Wrap(server)); err != nil {
 		return nil, err
 	} else {
+    go ReplicateRoutine(server.pending, server.paxosnode)
         return server, nil
     }
-    return server,nil
+
     //TODO:Now the listener is in the lease node, and we should let chubbyserver contain listener
 }
 
@@ -69,7 +72,8 @@ func (server *chubbyserver) Put(args *chubbyrpc.PutArgs, reply *chubbyrpc.Chubby
     server.nextCID++
     server.replyChs[c.ID] = replyCh
     server.lock.Unlock()
-    go server.paxosnode.Replicate(c)
+    //go server.paxosnode.Replicate(c)
+    server.pending.Enqueue(c)
 
     // blocking for reply
     r := <-replyCh
@@ -88,7 +92,8 @@ func (server *chubbyserver) Get(args *chubbyrpc.GetArgs, reply *chubbyrpc.Chubby
     server.nextCID++
     server.replyChs[c.ID] = replyCh
     server.lock.Unlock()
-    go server.paxosnode.Replicate(c)
+    //go server.paxosnode.Replicate(c)
+    server.pending.Enqueue(c)
 
     // blocking for reply
     r := <-replyCh
@@ -108,7 +113,8 @@ func (server *chubbyserver) Aquire(args *chubbyrpc.AquireArgs, reply *chubbyrpc.
     server.nextCID++
     server.replyChs[c.ID] = replyCh
     server.lock.Unlock()
-    go server.paxosnode.Replicate(c)
+    //go server.paxosnode.Replicate(c)
+    server.pending.Enqueue(c)
 
     // blocking for reply
     r := <-replyCh
@@ -129,7 +135,8 @@ func (server *chubbyserver) Release(args *chubbyrpc.ReleaseArgs, reply *chubbyrp
     server.nextCID++
     server.replyChs[c.ID] = replyCh
     server.lock.Unlock()
-    go server.paxosnode.Replicate(c)
+    //go server.paxosnode.Replicate(c)
+    server.pending.Enqueue(c)
 
     // blocking for reply
     r := <-replyCh
