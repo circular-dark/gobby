@@ -26,6 +26,15 @@ fmt.sh                  ---- format go code.
 kill_mac.sh             ---- kill all running nodes for mac OS.
 kill_linux.py           ---- kill all running nodes for linux OS.
 
+src/command             ---- command struct definition.
+src/config              ---- configuration of servers.
+src/gobbyclient         ---- gobby client library.
+src/gobbyserver         ---- gobby server implementation.
+src/lease               ---- PaxosLease manager.
+src/logfile             ---- persistent logger for recovery (not used).
+src/paxos               ---- Paxos for replicated command log.
+src/rpc                 ---- rpc definitions.
+
 gobby_test/             ---- tests for gobby server and client.
 paxos_test/             ---- tests for Paxos on the replicated command log.
 lease_test/             ---- tests for PaxosLease for signing master lease.
