@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/gobby/src/chubbyclient"
+	"github.com/gobby/src/gobbyclient"
 	"math/rand"
 	"strconv"
 	"time"
@@ -15,9 +15,9 @@ const (
 )
 
 func main() {
-	client, err := chubbyclient.NewClient(numNodes, cid)
+	client, err := gobbyclient.NewClient(numNodes, cid)
 	if err != nil {
-		fmt.Println("can't create chubby client")
+		fmt.Println("can't create gobby client")
 		return
 	}
 	if cid == 0 {

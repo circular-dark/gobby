@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/gobby/src/chubbyserver"
+	"github.com/gobby/src/gobbyserver"
 	"github.com/gobby/src/config"
 	"github.com/gobby/src/rpc/rpcwrapper"
 	"net"
@@ -20,7 +20,7 @@ func main() {
 	rpcwrapper.SetForwardDropRate(droprate)
 	rpcwrapper.SetBackwardDropRate(droprate)
 	fmt.Printf("server %d starts\n", nid)
-	_, err := chubbyserver.NewChubbyServer(nid, numNodes)
+	_, err := gobbyserver.NewGobbyServer(nid, numNodes)
 	if err != nil {
 		fmt.Println("Cannot start node.\n")
 		fmt.Println(err)

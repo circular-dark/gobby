@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/gobby/src/chubbyserver"
+	"github.com/gobby/src/gobbyserver"
 	"github.com/gobby/src/config"
 	"net"
 	"net/http"
@@ -16,7 +16,7 @@ const (
 
 func main() {
 	fmt.Printf("server %d starts\n", nid)
-	_, err := chubbyserver.NewChubbyServer(nid, numNodes)
+	_, err := gobbyserver.NewGobbyServer(nid, numNodes)
 	if err != nil {
 		fmt.Println("Cannot start node.\n")
 		fmt.Println(err)

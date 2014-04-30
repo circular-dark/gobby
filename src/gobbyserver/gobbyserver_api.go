@@ -4,7 +4,7 @@ import (
 	"github.com/gobby/src/rpc/gobbyrpc"
 )
 
-type gobbyserver interface {
+type Gobbyserver interface {
 	Put(args *gobbyrpc.PutArgs, reply *gobbyrpc.GobbyReply) error
 	Get(args *gobbyrpc.GetArgs, reply *gobbyrpc.GobbyReply) error
 	Acquire(args *gobbyrpc.AcquireArgs, reply *gobbyrpc.GobbyReply) error

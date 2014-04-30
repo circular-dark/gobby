@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/gobby/src/chubbyclient"
+	"github.com/gobby/src/gobbyclient"
 	"time"
 )
 
 func main() {
-	client, err := chubbyclient.NewClient(-1, 0)
+	client, err := gobbyclient.NewClient(-1, 0)
 	if err != nil {
 		fmt.Println("wrong")
 	}

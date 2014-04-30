@@ -1,4 +1,4 @@
-package chubbyserver
+package gobbyserver
 
 import (
 	"container/list"

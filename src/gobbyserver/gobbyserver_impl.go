@@ -33,7 +33,7 @@ type gobbyserver struct {
 	pending    *Queue
 }
 
-func NewgobbyServer(nodeID int, numNodes int) (gobbyserver, error) {
+func NewGobbyServer(nodeID int, numNodes int) (Gobbyserver, error) {
 	server := new(gobbyserver)
 	server.addrport = config.Nodes[nodeID].Address + ":" + strconv.Itoa(config.Nodes[nodeID].Port)
 	server.store = make(map[string]*kstate)

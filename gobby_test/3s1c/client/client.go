@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/gobby/src/chubbyclient"
+	"github.com/gobby/src/gobbyclient"
 )
 
 func main() {
 	//TODO:need modify NewClient parameter, now is the numNodes
-	client, err := chubbyclient.NewClient(-1, 1)
+	client, err := gobbyclient.NewClient(-1, 1)
 	if err != nil {
 		fmt.Println("wrong")
 	}
@@ -24,5 +24,5 @@ func main() {
 	ts, err := client.Acquire("test")
 	fmt.Println("Client Aquire lock " + ts)
 	fmt.Println("Client Release test")
-	client.Release("test")
+	client.Release("test", ts)
 }
