@@ -1,4 +1,4 @@
-package chubbyrpc
+package gobbyrpc
 
 type Status int
 
@@ -33,7 +33,7 @@ type WatchArgs struct {
 	HostAddr string
 }
 
-type ChubbyReply struct {
+type GobbyReply struct {
 	Status Status
 	Value  string
 }

@@ -1,6 +1,6 @@
-package chubbyclient
+package gobbyclient
 
-type Chubbyclient interface {
+type Gobbyclient interface {
 	Put(key, value string) error
 	Get(key string) (string, error)
 	Acquire(key string) (string, error)

@@ -1,15 +1,14 @@
-package chubbyserver
+package gobbyserver
 
 import (
 	"strconv"
 	"sync"
-	//    "time"
 	"fmt"
 	"github.com/gobby/src/command"
 	"github.com/gobby/src/config"
 	"github.com/gobby/src/lease"
 	"github.com/gobby/src/paxos"
-	"github.com/gobby/src/rpc/chubbyrpc"
+	"github.com/gobby/src/rpc/gobbyrpc"
 	"net"
 	"net/rpc"
 )
@@ -21,26 +20,26 @@ type kstate struct {
 	watchers  map[string]string //watcher->responsible server
 }
 
-type chubbyserver struct {
+type gobbyserver struct {
 	addrport   string
 	store      map[string]*kstate
 	commandLog []*command.Command
 	nextIndex  int                                 // next index of command that should be executed
 	nextCID    int                                 // next command ID that should be assigned
-	replyChs   map[int]chan *chubbyrpc.ChubbyReply // maps command id to channels that block RPC calls
+	replyChs   map[int]chan *gobbyrpc.GobbyReply // maps command id to channels that block RPC calls
 	lock       sync.Mutex
 	paxosnode  paxos.PaxosNode
 	leasenode  lease.LeaseNode
 	pending    *Queue
 }
 
-func NewChubbyServer(nodeID int, numNodes int) (Chubbyserver, error) {
-	server := new(chubbyserver)
+func NewgobbyServer(nodeID int, numNodes int) (gobbyserver, error) {
+	server := new(gobbyserver)
 	server.addrport = config.Nodes[nodeID].Address + ":" + strconv.Itoa(config.Nodes[nodeID].Port)
 	server.store = make(map[string]*kstate)
 	server.commandLog = make([]*command.Command, 0)
 	server.nextIndex = 0
-	server.replyChs = make(map[int]chan *chubbyrpc.ChubbyReply)
+	server.replyChs = make(map[int]chan *gobbyrpc.GobbyReply)
 	server.pending = NewQueue()
 	if pnode, err := paxos.NewPaxosNode(nodeID, numNodes, server.getCommand); err != nil {
 		return nil, err
@@ -53,17 +52,17 @@ func NewChubbyServer(nodeID int, numNodes int) (Chubbyserver, error) {
 		server.leasenode = lnode
 	}
 
-	if err := rpc.RegisterName("ChubbyServer", chubbyrpc.Wrap(server)); err != nil {
+	if err := rpc.RegisterName("gobbyServer", gobbyrpc.Wrap(server)); err != nil {
 		return nil, err
 	} else {
 		go ReplicateRoutine(server.pending, server.paxosnode)
 		return server, nil
 	}
 
-	//TODO:Now the listener is in the lease node, and we should let chubbyserver contain listener
+	//TODO:Now the listener is in the lease node, and we should let gobbyserver contain listener
 }
 
-func (server *chubbyserver) Put(args *chubbyrpc.PutArgs, reply *chubbyrpc.ChubbyReply) error {
+func (server *gobbyserver) Put(args *gobbyrpc.PutArgs, reply *gobbyrpc.GobbyReply) error {
 	server.lock.Lock()
 	c := &command.Command{
 		Key:   args.Key,
@@ -71,7 +70,7 @@ func (server *chubbyserver) Put(args *chubbyrpc.PutArgs, reply *chubbyrpc.Chubby
 		Type:  command.Put,
 		ID:    server.nextCID,
 	}
-	replyCh := make(chan *chubbyrpc.ChubbyReply)
+	replyCh := make(chan *gobbyrpc.GobbyReply)
 	server.nextCID++
 	server.replyChs[c.ID] = replyCh
 	server.lock.Unlock()
@@ -84,14 +83,14 @@ func (server *chubbyserver) Put(args *chubbyrpc.PutArgs, reply *chubbyrpc.Chubby
 	return nil
 }
 
-func (server *chubbyserver) Get(args *chubbyrpc.GetArgs, reply *chubbyrpc.ChubbyReply) error {
+func (server *gobbyserver) Get(args *gobbyrpc.GetArgs, reply *gobbyrpc.GobbyReply) error {
 	server.lock.Lock()
 	c := &command.Command{
 		Key:  args.Key,
 		Type: command.Get,
 		ID:   server.nextCID,
 	}
-	replyCh := make(chan *chubbyrpc.ChubbyReply)
+	replyCh := make(chan *gobbyrpc.GobbyReply)
 	server.nextCID++
 	server.replyChs[c.ID] = replyCh
 	server.lock.Unlock()
@@ -105,14 +104,14 @@ func (server *chubbyserver) Get(args *chubbyrpc.GetArgs, reply *chubbyrpc.Chubby
 	return nil
 }
 
-func (server *chubbyserver) Acquire(args *chubbyrpc.AcquireArgs, reply *chubbyrpc.ChubbyReply) error {
+func (server *gobbyserver) Acquire(args *gobbyrpc.AcquireArgs, reply *gobbyrpc.GobbyReply) error {
 	server.lock.Lock()
 	c := &command.Command{
 		Key:  args.Key,
 		Type: command.Acquire,
 		ID:   server.nextCID,
 	}
-	replyCh := make(chan *chubbyrpc.ChubbyReply)
+	replyCh := make(chan *gobbyrpc.GobbyReply)
 	server.nextCID++
 	server.replyChs[c.ID] = replyCh
 	server.lock.Unlock()
@@ -126,7 +125,7 @@ func (server *chubbyserver) Acquire(args *chubbyrpc.AcquireArgs, reply *chubbyrp
 	return nil
 }
 
-func (server *chubbyserver) Release(args *chubbyrpc.ReleaseArgs, reply *chubbyrpc.ChubbyReply) error {
+func (server *gobbyserver) Release(args *gobbyrpc.ReleaseArgs, reply *gobbyrpc.GobbyReply) error {
 	server.lock.Lock()
 	c := &command.Command{
 		Key:   args.Key,
@@ -134,7 +133,7 @@ func (server *chubbyserver) Release(args *chubbyrpc.ReleaseArgs, reply *chubbyrp
 		Type:  command.Release,
 		ID:    server.nextCID,
 	}
-	replyCh := make(chan *chubbyrpc.ChubbyReply)
+	replyCh := make(chan *gobbyrpc.GobbyReply)
 	server.nextCID++
 	server.replyChs[c.ID] = replyCh
 	server.lock.Unlock()
@@ -147,16 +146,16 @@ func (server *chubbyserver) Release(args *chubbyrpc.ReleaseArgs, reply *chubbyrp
 	return nil
 }
 
-func (server *chubbyserver) CheckMaster(args *chubbyrpc.CheckArgs, reply *chubbyrpc.ChubbyReply) error {
+func (server *gobbyserver) CheckMaster(args *gobbyrpc.CheckArgs, reply *gobbyrpc.GobbyReply) error {
 	if server.leasenode.CheckMaster() {
-		reply.Status = chubbyrpc.OK
+		reply.Status = gobbyrpc.OK
 	} else {
-		reply.Status = chubbyrpc.FAIL
+		reply.Status = gobbyrpc.FAIL
 	}
 	return nil
 }
 
-func (server *chubbyserver) Watch(args *chubbyrpc.WatchArgs, reply *chubbyrpc.ChubbyReply) error {
+func (server *gobbyserver) Watch(args *gobbyrpc.WatchArgs, reply *gobbyrpc.GobbyReply) error {
 	server.lock.Lock()
 	c := &command.Command{
 		Key:   args.Key,
@@ -164,7 +163,7 @@ func (server *chubbyserver) Watch(args *chubbyrpc.WatchArgs, reply *chubbyrpc.Ch
 		Type:  command.Watch,
 		ID:    server.nextCID,
 	}
-	replyCh := make(chan *chubbyrpc.ChubbyReply)
+	replyCh := make(chan *gobbyrpc.GobbyReply)
 	server.nextCID++
 	server.replyChs[c.ID] = replyCh
 	server.lock.Unlock()
@@ -177,7 +176,7 @@ func (server *chubbyserver) Watch(args *chubbyrpc.WatchArgs, reply *chubbyrpc.Ch
 	return nil
 }
 
-func (server *chubbyserver) getCommand(index int, c command.Command) {
+func (server *gobbyserver) getCommand(index int, c command.Command) {
 	paxos.LOGV.Println("in getCommand")
 	server.lock.Lock()
 	for len(server.commandLog) < index+1 {
@@ -189,14 +188,14 @@ func (server *chubbyserver) getCommand(index int, c command.Command) {
 	paxos.LOGV.Println("leave getCommand")
 }
 
-func (server *chubbyserver) executeCommands() {
+func (server *gobbyserver) executeCommands() {
 	paxos.LOGV.Println("in executeCommand")
 	server.lock.Lock()
 	for server.nextIndex < len(server.commandLog) && server.commandLog[server.nextIndex] != nil {
 		c := server.commandLog[server.nextIndex]
 		cid := c.ID
 		//TODO: how to distinguish other nodes and itself's commands?
-		var replyCh chan *chubbyrpc.ChubbyReply = nil
+		var replyCh chan *gobbyrpc.GobbyReply = nil
 		if c.AddrPort == server.addrport {
 			replyCh = server.replyChs[cid]
 			delete(server.replyChs, cid)
@@ -211,8 +210,8 @@ func (server *chubbyserver) executeCommands() {
 				notifyWatchers(c.Value, st, server)
 				st.watchers = make(map[string]string)
 				if replyCh != nil {
-					replyCh <- &chubbyrpc.ChubbyReply{
-						Status: chubbyrpc.OK,
+					replyCh <- &gobbyrpc.GobbyReply{
+						Status: gobbyrpc.OK,
 					}
 				}
 			} else {
@@ -222,8 +221,8 @@ func (server *chubbyserver) executeCommands() {
 					watchers: make(map[string]string),
 				}
 				if replyCh != nil {
-					replyCh <- &chubbyrpc.ChubbyReply{
-						Status: chubbyrpc.OK,
+					replyCh <- &gobbyrpc.GobbyReply{
+						Status: gobbyrpc.OK,
 					}
 				}
 			}
@@ -231,15 +230,15 @@ func (server *chubbyserver) executeCommands() {
 		case command.Get:
 			if st, ok := server.store[c.Key]; ok {
 				if replyCh != nil {
-					replyCh <- &chubbyrpc.ChubbyReply{
-						Status: chubbyrpc.OK,
+					replyCh <- &gobbyrpc.GobbyReply{
+						Status: gobbyrpc.OK,
 						Value:  st.value,
 					}
 				}
 			} else {
 				if replyCh != nil {
-					replyCh <- &chubbyrpc.ChubbyReply{
-						Status: chubbyrpc.FAIL,
+					replyCh <- &gobbyrpc.GobbyReply{
+						Status: gobbyrpc.FAIL,
 					}
 				}
 			}
@@ -247,24 +246,24 @@ func (server *chubbyserver) executeCommands() {
 			if st, ok := server.store[c.Key]; ok {
 				if st.locked {
 					if replyCh != nil {
-						replyCh <- &chubbyrpc.ChubbyReply{
-							Status: chubbyrpc.FAIL,
+						replyCh <- &gobbyrpc.GobbyReply{
+							Status: gobbyrpc.FAIL,
 						}
 					}
 				} else {
 					st.locked = true
 					st.lockstamp = c.Value
 					if replyCh != nil {
-						replyCh <- &chubbyrpc.ChubbyReply{
-							Status: chubbyrpc.OK,
+						replyCh <- &gobbyrpc.GobbyReply{
+							Status: gobbyrpc.OK,
 							Value:  st.lockstamp,
 						}
 					}
 				}
 			} else {
 				if replyCh != nil {
-					replyCh <- &chubbyrpc.ChubbyReply{
-						Status: chubbyrpc.FAIL,
+					replyCh <- &gobbyrpc.GobbyReply{
+						Status: gobbyrpc.FAIL,
 					}
 				}
 			}
@@ -272,22 +271,22 @@ func (server *chubbyserver) executeCommands() {
 			if st, ok := server.store[c.Key]; ok {
 				if !st.locked || st.lockstamp != c.Value {
 					if replyCh != nil {
-						replyCh <- &chubbyrpc.ChubbyReply{
-							Status: chubbyrpc.FAIL,
+						replyCh <- &gobbyrpc.GobbyReply{
+							Status: gobbyrpc.FAIL,
 						}
 					}
 				} else {
 					st.locked = false
 					if replyCh != nil {
-						replyCh <- &chubbyrpc.ChubbyReply{
-							Status: chubbyrpc.OK,
+						replyCh <- &gobbyrpc.GobbyReply{
+							Status: gobbyrpc.OK,
 						}
 					}
 				}
 			} else {
 				if replyCh != nil {
-					replyCh <- &chubbyrpc.ChubbyReply{
-						Status: chubbyrpc.FAIL,
+					replyCh <- &gobbyrpc.GobbyReply{
+						Status: gobbyrpc.FAIL,
 					}
 				}
 			}
@@ -295,15 +294,15 @@ func (server *chubbyserver) executeCommands() {
 			if st, ok := server.store[c.Key]; ok {
 				st.watchers[c.Value] = c.AddrPort
 				if replyCh != nil {
-					replyCh <- &chubbyrpc.ChubbyReply{
-						Status: chubbyrpc.OK,
+					replyCh <- &gobbyrpc.GobbyReply{
+						Status: gobbyrpc.OK,
 						Value:  st.value,
 					}
 				}
 			} else {
 				if replyCh != nil {
-					replyCh <- &chubbyrpc.ChubbyReply{
-						Status: chubbyrpc.FAIL,
+					replyCh <- &gobbyrpc.GobbyReply{
+						Status: gobbyrpc.FAIL,
 					}
 				}
 			}
@@ -314,7 +313,7 @@ func (server *chubbyserver) executeCommands() {
 	paxos.LOGV.Println("leaving executeCommand")
 }
 
-func notifyWatchers(v string, st *kstate, server *chubbyserver) {
+func notifyWatchers(v string, st *kstate, server *gobbyserver) {
 	for w, s := range st.watchers {
 		if s == server.addrport {
 			go func(addrport string) {

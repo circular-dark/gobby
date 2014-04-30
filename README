@@ -1,1 +1,31 @@
 Gobby is a simplified Chubby implemented in Go.
+
+To be precise, Gobby is a reliable distributed key-value store based on Paxos,
+and can provide coordination service for distributed applications, including
+locks and notifications.
+
+--------------------------------------------------------------------------------
+RPC Interface for Gobby
+--------------------------------------------------------------------------------
+
+Put(key, value)         ---- assign key-value pair.
+Get(key)                ---- get value.
+Acquire(key)            ---- acquire the lock on the key (every key can be
+                               used as a lock).
+Release(key)            ---- release the lock on the key.
+Watch(key)              ---- notifies me when the value associated with this
+                               key changes.
+CheckMaster()           ---- check whether this gobby server is the master.
+
+--------------------------------------------------------------------------------
+Structure
+--------------------------------------------------------------------------------
+
+README                  ---- this file.
+fmt.sh                  ---- format go code.
+kill_mac.sh             ---- kill all running nodes for mac OS.
+kill_linux.py           ---- kill all running nodes for linux OS.
+
+gobby_test/             ---- tests for gobby server and client.
+paxos_test/             ---- tests for Paxos on the replicated command log.
+lease_test/             ---- tests for PaxosLease for signing master lease.
