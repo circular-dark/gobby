@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"github.com/gobby/src/chubbyserver"
 	"github.com/gobby/src/config"
+	"github.com/gobby/src/rpc/rpcwrapper"
 	"net"
 	"net/http"
 	"net/rpc"
-	"github.com/gobby/src/rpc/rpcwrapper"
 )
 
 const (

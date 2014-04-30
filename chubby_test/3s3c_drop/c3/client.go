@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/gobby/src/chubbyclient"
+	"math/rand"
 	"strconv"
 	"time"
-"math/rand"
 )
 
 const (
@@ -31,7 +31,7 @@ func main() {
 		var err error
 		for {
 			if lstm, err = client.Acquire(key); err != nil {
-                 time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
+				time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
 				continue
 			}
 			fmt.Printf("client %d gets the lock\n", cid)

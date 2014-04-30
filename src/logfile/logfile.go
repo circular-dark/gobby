@@ -10,153 +10,153 @@
 package logfile
 
 import (
-    "encoding/binary"
-    "errors"
-    "os"
-    "sync"
+	"encoding/binary"
+	"errors"
+	"os"
+	"sync"
 )
 
 const (
-    filename string = "logs.log"
+	filename string = "logs.log"
 )
 
 type Logfiler struct {
-    file *os.File
-    size int64          // number of records in the log
-    tailOffset int64    // byte offset for the tail
-    readOffset int64    // byte offset for the read pointer
-    mutex *sync.Mutex   // lock for syncronization
+	file       *os.File
+	size       int64       // number of records in the log
+	tailOffset int64       // byte offset for the tail
+	readOffset int64       // byte offset for the read pointer
+	mutex      *sync.Mutex // lock for syncronization
 }
 
 // this opens a new empty logfile
 func NewLogger() (*Logfiler, error) {
-    l := new(Logfiler)
-    l.tailOffset = 8
-    l.readOffset = 8
-    l.mutex = new(sync.Mutex)
+	l := new(Logfiler)
+	l.tailOffset = 8
+	l.readOffset = 8
+	l.mutex = new(sync.Mutex)
 
-    var f *os.File
-    var err error
-    if f, err = os.Create(filename); err == nil {
-        l.file = f
-        l.size = 0
-        if err = l.writeInt64(l.size, 0); err != nil {
-            return nil, err
-        }
-    } else {
-        return nil, err
-    }
+	var f *os.File
+	var err error
+	if f, err = os.Create(filename); err == nil {
+		l.file = f
+		l.size = 0
+		if err = l.writeInt64(l.size, 0); err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
 
-    return l, nil
+	return l, nil
 }
 
 // this recovers from the existing logfile
 func Recover() (*Logfiler, error) {
-    l := new(Logfiler)
-    l.tailOffset = 8
-    l.readOffset = 8
-    l.mutex = new(sync.Mutex)
+	l := new(Logfiler)
+	l.tailOffset = 8
+	l.readOffset = 8
+	l.mutex = new(sync.Mutex)
 
-    var f *os.File
-    var err error
-    if f, err = os.OpenFile(filename, os.O_RDWR, 0666); err == nil {
-        var num int64
-        l.file = f
-        if num, err = l.readInt64(0); err == nil {
-            l.size = num
-        } else {
-            return nil, err
-        }
-    } else {
-        return nil, err
-    }
+	var f *os.File
+	var err error
+	if f, err = os.OpenFile(filename, os.O_RDWR, 0666); err == nil {
+		var num int64
+		l.file = f
+		if num, err = l.readInt64(0); err == nil {
+			l.size = num
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
 
-    var size int64
-    if size, err = l.readInt64(0); err != nil {
-        return nil, err
-    }
-    l.size = size
+	var size int64
+	if size, err = l.readInt64(0); err != nil {
+		return nil, err
+	}
+	l.size = size
 
-    for ; size > 0; size-- {
-        if size, err = l.readInt64(l.tailOffset); err != nil {
-            return nil, err
-        }
-        l.tailOffset += (l.tailOffset + 8)
-    }
+	for ; size > 0; size-- {
+		if size, err = l.readInt64(l.tailOffset); err != nil {
+			return nil, err
+		}
+		l.tailOffset += (l.tailOffset + 8)
+	}
 
-    return l, nil
+	return l, nil
 }
 
 func (l *Logfiler) AppendRecord(b []byte) error {
-    l.mutex.Lock()
-    s := int64(len(b))
-    if err := l.writeInt64(s, l.tailOffset); err != nil {
-        l.mutex.Unlock()
-        return err
-    }
-    if _, err := l.file.WriteAt(b, l.tailOffset + 8); err != nil {
-        l.mutex.Unlock()
-        return err
-    }
-    if err := l.writeInt64(l.size + 1, 0); err != nil {
-        l.mutex.Unlock()
-        return err
-    }
-    l.tailOffset += (s + 8)
-    l.size++
-    l.mutex.Unlock()
-    return nil
+	l.mutex.Lock()
+	s := int64(len(b))
+	if err := l.writeInt64(s, l.tailOffset); err != nil {
+		l.mutex.Unlock()
+		return err
+	}
+	if _, err := l.file.WriteAt(b, l.tailOffset+8); err != nil {
+		l.mutex.Unlock()
+		return err
+	}
+	if err := l.writeInt64(l.size+1, 0); err != nil {
+		l.mutex.Unlock()
+		return err
+	}
+	l.tailOffset += (s + 8)
+	l.size++
+	l.mutex.Unlock()
+	return nil
 }
 
 func (l *Logfiler) NextRecord() ([]byte, error) {
-    l.mutex.Lock()
-    if l.readOffset == l.tailOffset {
-        l.mutex.Unlock()
-        return nil, errors.New("reach the end of the log")
-    } else {
-        var size int64
-        var err error
-        if size, err = l.readInt64(l.readOffset); err != nil {
-            l.mutex.Unlock()
-            return nil, err
-        }
-        buf := make([]byte, size)
-        if _, err := l.file.ReadAt(buf, l.readOffset + 8); err != nil {
-            l.mutex.Unlock()
-            return nil, err
-        } else {
-            l.readOffset += (size + 8)
-            l.mutex.Unlock()
-            return buf, nil
-        }
-    }
+	l.mutex.Lock()
+	if l.readOffset == l.tailOffset {
+		l.mutex.Unlock()
+		return nil, errors.New("reach the end of the log")
+	} else {
+		var size int64
+		var err error
+		if size, err = l.readInt64(l.readOffset); err != nil {
+			l.mutex.Unlock()
+			return nil, err
+		}
+		buf := make([]byte, size)
+		if _, err := l.file.ReadAt(buf, l.readOffset+8); err != nil {
+			l.mutex.Unlock()
+			return nil, err
+		} else {
+			l.readOffset += (size + 8)
+			l.mutex.Unlock()
+			return buf, nil
+		}
+	}
 }
 
 func (l *Logfiler) Close() error {
-    return l.file.Close()
+	return l.file.Close()
 }
 
 // write num at offset
 func (l *Logfiler) writeInt64(num, offset int64) error {
-    b := make([]byte, 8)
-    binary.PutVarint(b, num)
-    _, err := l.file.WriteAt(b, offset)
-    return err
+	b := make([]byte, 8)
+	binary.PutVarint(b, num)
+	_, err := l.file.WriteAt(b, offset)
+	return err
 }
 
 // read an in64 from offset
 func (l *Logfiler) readInt64(offset int64) (int64, error) {
-    b := make([]byte, 8)
-    if _, err := l.file.ReadAt(b, offset); err == nil {
-        var num int64
-        var n int
-        num, n = binary.Varint(b)
-        if n <= 0 {
-            return 0, errors.New("Logfiler readInt64 error")
-        } else {
-            return num, nil
-        }
-    } else {
-        return 0, err
-    }
+	b := make([]byte, 8)
+	if _, err := l.file.ReadAt(b, offset); err == nil {
+		var num int64
+		var n int
+		num, n = binary.Varint(b)
+		if n <= 0 {
+			return 0, errors.New("Logfiler readInt64 error")
+		} else {
+			return num, nil
+		}
+	} else {
+		return 0, err
+	}
 }

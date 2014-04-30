@@ -42,7 +42,6 @@ type PaxosNode interface {
 
 	//Print commited logs
 	DumpLog() error
-
 }
 
 type PaxosCallBack func(int, command.Command)

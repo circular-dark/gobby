@@ -4,10 +4,10 @@ import (
 	"container/list"
 	"github.com/gobby/src/command"
 	"github.com/gobby/src/paxos"
+	"strconv"
 	"sync"
-"time"
-"strconv"
-//"fmt"
+	"time"
+	//"fmt"
 )
 
 type Queue struct {
@@ -24,17 +24,17 @@ func NewQueue() *Queue {
 }
 
 func (q *Queue) Enqueue(c *command.Command) {
-//fmt.Println("Enqueue command:"+c.ToString())
+	//fmt.Println("Enqueue command:"+c.ToString())
 	q.lock.Lock()
 	//q.cond.L.Lock()
-if c.Type == command.Acquire {
-  c.Value = strconv.FormatInt(time.Now().UnixNano(), 10)
-}
+	if c.Type == command.Acquire {
+		c.Value = strconv.FormatInt(time.Now().UnixNano(), 10)
+	}
 	q.l.PushBack(c)
 	q.lock.Unlock()
 	//q.cond.L.Unlock()
 	q.cond.Signal()
-//fmt.Println("After Enqueue command:"+c.ToString())
+	//fmt.Println("After Enqueue command:"+c.ToString())
 }
 
 func (q *Queue) Dequeue() *command.Command {
@@ -51,10 +51,10 @@ func (q *Queue) Dequeue() *command.Command {
 }
 
 func ReplicateRoutine(q *Queue, pn paxos.PaxosNode) {
-//fmt.Println("in Replicate Routine")
+	//fmt.Println("in Replicate Routine")
 	for {
 		c := q.Dequeue()
-//fmt.Println("Dequeue command:"+c.ToString())
+		//fmt.Println("Dequeue command:"+c.ToString())
 		pn.Replicate(c)
 	}
 }

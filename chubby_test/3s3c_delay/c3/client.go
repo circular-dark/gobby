@@ -31,7 +31,7 @@ func main() {
 		var err error
 		for {
 			if lstm, err = client.Acquire(key); err != nil {
-                /* time.Sleep(time.Second) */
+				/* time.Sleep(time.Second) */
 				continue
 			}
 			fmt.Printf("client %d gets the lock\n", cid)

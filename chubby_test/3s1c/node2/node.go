@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
+	"github.com/gobby/src/chubbyserver"
 	"github.com/gobby/src/command"
 	"github.com/gobby/src/config"
-	"github.com/gobby/src/chubbyserver"
 	//"strconv"
 	//"time"
 	"net"

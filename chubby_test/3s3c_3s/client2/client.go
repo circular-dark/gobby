@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/gobby/src/chubbyclient"
-"time"
+	"time"
 )
 
 func main() {

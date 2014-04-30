@@ -3,13 +3,13 @@ package chubbyrpc
 type Status int
 
 const (
-	OK      Status = iota + 1 //The RPC was a success
-	FAIL                      //The RPC failed
+	OK   Status = iota + 1 //The RPC was a success
+	FAIL                   //The RPC failed
 )
 
 type PutArgs struct {
-	Key string
-    Value string
+	Key   string
+	Value string
 }
 
 type GetArgs struct {
@@ -21,11 +21,11 @@ type AcquireArgs struct {
 }
 
 type ReleaseArgs struct {
-	Key string
-    Lockstamp string
+	Key       string
+	Lockstamp string
 }
 
 type ChubbyReply struct {
 	Status Status
-    Value string
+	Value  string
 }

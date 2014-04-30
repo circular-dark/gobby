@@ -584,5 +584,5 @@ func (pn *paxosNode) DumpLog() error {
 }
 
 func (pn *paxosNode) SetListener(listener *net.Listener) {
-  pn.listener = listener
+	pn.listener = listener
 }

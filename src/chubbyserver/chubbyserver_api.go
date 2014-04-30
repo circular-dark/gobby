@@ -1,7 +1,7 @@
 package chubbyserver
 
 import (
-    "github.com/gobby/src/rpc/chubbyrpc"
+	"github.com/gobby/src/rpc/chubbyrpc"
 )
 
 type Chubbyserver interface {

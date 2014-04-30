@@ -1,7 +1,7 @@
 package lease
 
 import (
-    "github.com/gobby/src/rpc/leaserpc"
+	"github.com/gobby/src/rpc/leaserpc"
 )
 
 type LeaseNode interface {
@@ -9,5 +9,5 @@ type LeaseNode interface {
 	Accept(args *leaserpc.Args, reply *leaserpc.Reply) error
 	RenewPrepare(args *leaserpc.Args, reply *leaserpc.Reply) error
 	RenewAccept(args *leaserpc.Args, reply *leaserpc.Reply) error
-    CheckMaster() bool
+	CheckMaster() bool
 }
