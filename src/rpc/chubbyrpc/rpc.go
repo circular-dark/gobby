@@ -5,7 +5,7 @@ type RemoteChubbyServer interface {
 	Get(args *GetArgs, reply *ChubbyReply) error
 	Acquire(args *AcquireArgs, reply *ChubbyReply) error
 	Release(args *ReleaseArgs, reply *ChubbyReply) error
-    CheckMaster(args *CheckArgs, reply *ChubbyReply) error
+	CheckMaster(args *CheckArgs, reply *ChubbyReply) error
 	Watch(args *WatchArgs, reply *ChubbyReply) error
 }
 

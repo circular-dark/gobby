@@ -26,12 +26,11 @@ type ReleaseArgs struct {
 }
 
 type CheckArgs struct {
-
 }
 
 type WatchArgs struct {
-	Key	  string
-	HostAddr  string
+	Key      string
+	HostAddr string
 }
 
 type ChubbyReply struct {

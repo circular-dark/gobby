@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/gobby/src/lease"
 	"github.com/gobby/src/config"
-	"net"
+	"github.com/gobby/src/lease"
 	"github.com/gobby/src/rpc/rpcwrapper"
+	"net"
 	"net/http"
 	"net/rpc"
 )

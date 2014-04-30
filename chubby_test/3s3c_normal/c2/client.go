@@ -3,15 +3,15 @@ package main
 import (
 	"fmt"
 	"github.com/gobby/src/chubbyclient"
+	"math/rand"
 	"strconv"
 	"time"
-    "math/rand"
 )
 
 const (
-	cid = 1
-    numNodes = 3
-	key = "test"
+	cid      = 1
+	numNodes = 3
+	key      = "test"
 )
 
 func main() {

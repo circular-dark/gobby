@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	cid = 1
-    numNodes = 3
-	key = "test"
+	cid      = 1
+	numNodes = 3
+	key      = "test"
 )
 
 func main() {

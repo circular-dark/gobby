@@ -48,9 +48,9 @@ func NewChubbyServer(nodeID int, numNodes int) (Chubbyserver, error) {
 		server.paxosnode = pnode
 	}
 	if lnode, err := lease.NewLeaseNode(nodeID, numNodes); err != nil {
-	    return nil, err
+		return nil, err
 	} else {
-	    server.leasenode = lnode
+		server.leasenode = lnode
 	}
 
 	if err := rpc.RegisterName("ChubbyServer", chubbyrpc.Wrap(server)); err != nil {
@@ -148,12 +148,12 @@ func (server *chubbyserver) Release(args *chubbyrpc.ReleaseArgs, reply *chubbyrp
 }
 
 func (server *chubbyserver) CheckMaster(args *chubbyrpc.CheckArgs, reply *chubbyrpc.ChubbyReply) error {
-    if server.leasenode.CheckMaster() {
-        reply.Status = chubbyrpc.OK
-    } else {
-        reply.Status = chubbyrpc.FAIL
-    }
-    return nil
+	if server.leasenode.CheckMaster() {
+		reply.Status = chubbyrpc.OK
+	} else {
+		reply.Status = chubbyrpc.FAIL
+	}
+	return nil
 }
 
 func (server *chubbyserver) Watch(args *chubbyrpc.WatchArgs, reply *chubbyrpc.ChubbyReply) error {
@@ -329,7 +329,7 @@ func notifyWatchers(v string, st *kstate, server *chubbyserver) {
 					fmt.Printf("cannot connect %s:%s\n", addrport, err)
 					return
 				}
-fmt.Println("WatchNotify:"+v)
+				fmt.Println("WatchNotify:" + v)
 				conn.Write([]byte(v))
 				conn.Close()
 			}(w)
