@@ -42,11 +42,11 @@ func main() {
 	go http.Serve(listener, nil)
 
 	time.Sleep(5 * time.Second)
-	for i := 0; i < 3000; i++ {
+	for i := 0; i < 2000; i++ {
 		c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put, i, ""}
 		node.Replicate(&c)
 	}
-	for res := 0; res < 15000; res++ {
+	for res := 0; res < 10000; res++ {
 		_, ok := <-done
 		if !ok {
 			break

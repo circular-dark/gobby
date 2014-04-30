@@ -5,4 +5,5 @@ type Chubbyclient interface {
 	Get(key string) (string, error)
 	Acquire(key string) (string, error)
 	Release(key, lockstamp string) error
+	Watch(key string) error
 }

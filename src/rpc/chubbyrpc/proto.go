@@ -29,6 +29,11 @@ type CheckArgs struct {
 
 }
 
+type WatchArgs struct {
+	Key	  string
+	HostAddr  string
+}
+
 type ChubbyReply struct {
 	Status Status
 	Value  string

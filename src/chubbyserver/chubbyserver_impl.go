@@ -4,11 +4,13 @@ import (
 	"strconv"
 	"sync"
 	//    "time"
+	"fmt"
 	"github.com/gobby/src/command"
 	"github.com/gobby/src/config"
 	"github.com/gobby/src/lease"
 	"github.com/gobby/src/paxos"
 	"github.com/gobby/src/rpc/chubbyrpc"
+	"net"
 	"net/rpc"
 )
 
@@ -16,6 +18,7 @@ type kstate struct {
 	value     string
 	lockstamp string // a unixtime int64 stamp for identifying the lock (sequencer value)
 	locked    bool
+	watchers  map[string]string //watcher->responsible server
 }
 
 type chubbyserver struct {
@@ -153,6 +156,27 @@ func (server *chubbyserver) CheckMaster(args *chubbyrpc.CheckArgs, reply *chubby
     return nil
 }
 
+func (server *chubbyserver) Watch(args *chubbyrpc.WatchArgs, reply *chubbyrpc.ChubbyReply) error {
+	server.lock.Lock()
+	c := &command.Command{
+		Key:   args.Key,
+		Value: args.HostAddr,
+		Type:  command.Watch,
+		ID:    server.nextCID,
+	}
+	replyCh := make(chan *chubbyrpc.ChubbyReply)
+	server.nextCID++
+	server.replyChs[c.ID] = replyCh
+	server.lock.Unlock()
+	//go server.paxosnode.Replicate(c)
+	server.pending.Enqueue(c)
+
+	// blocking for reply
+	r := <-replyCh
+	reply.Status = r.Status
+	return nil
+}
+
 func (server *chubbyserver) getCommand(index int, c command.Command) {
 	paxos.LOGV.Println("in getCommand")
 	server.lock.Lock()
@@ -183,6 +207,9 @@ func (server *chubbyserver) executeCommands() {
 			paxos.LOGV.Println("in executeCommand:handle put")
 			if st, ok := server.store[c.Key]; ok {
 				st.value = c.Value
+				//TODO:Notify watchers
+				notifyWatchers(c.Value, st, server)
+				st.watchers = make(map[string]string)
 				if replyCh != nil {
 					replyCh <- &chubbyrpc.ChubbyReply{
 						Status: chubbyrpc.OK,
@@ -190,8 +217,9 @@ func (server *chubbyserver) executeCommands() {
 				}
 			} else {
 				server.store[c.Key] = &kstate{
-					value:  c.Value,
-					locked: false,
+					value:    c.Value,
+					locked:   false,
+					watchers: make(map[string]string),
 				}
 				if replyCh != nil {
 					replyCh <- &chubbyrpc.ChubbyReply{
@@ -263,9 +291,48 @@ func (server *chubbyserver) executeCommands() {
 					}
 				}
 			}
+		case command.Watch:
+			if st, ok := server.store[c.Key]; ok {
+				st.watchers[c.Value] = c.AddrPort
+				if replyCh != nil {
+					replyCh <- &chubbyrpc.ChubbyReply{
+						Status: chubbyrpc.OK,
+						Value:  st.value,
+					}
+				}
+			} else {
+				if replyCh != nil {
+					replyCh <- &chubbyrpc.ChubbyReply{
+						Status: chubbyrpc.FAIL,
+					}
+				}
+			}
 		}
 		server.nextIndex++
 	}
 	server.lock.Unlock()
 	paxos.LOGV.Println("leaving executeCommand")
+}
+
+func notifyWatchers(v string, st *kstate, server *chubbyserver) {
+	for w, s := range st.watchers {
+		if s == server.addrport {
+			go func(addrport string) {
+				//Notify all clients
+				serverAddr, err := net.ResolveUDPAddr("udp", addrport)
+				if err != nil {
+					fmt.Printf("cannot resolve %s:%s\n", addrport, err)
+					return
+				}
+				conn, err := net.DialUDP("udp", nil, serverAddr)
+				if err != nil {
+					fmt.Printf("cannot connect %s:%s\n", addrport, err)
+					return
+				}
+fmt.Println("WatchNotify:"+v)
+				conn.Write([]byte(v))
+				conn.Close()
+			}(w)
+		}
+	}
 }

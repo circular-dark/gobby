@@ -6,6 +6,7 @@ type RemoteChubbyServer interface {
 	Acquire(args *AcquireArgs, reply *ChubbyReply) error
 	Release(args *ReleaseArgs, reply *ChubbyReply) error
     CheckMaster(args *CheckArgs, reply *ChubbyReply) error
+	Watch(args *WatchArgs, reply *ChubbyReply) error
 }
 
 type ChubbyServer struct {
