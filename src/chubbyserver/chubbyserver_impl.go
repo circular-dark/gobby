@@ -44,11 +44,11 @@ func NewChubbyServer(nodeID int, numNodes int) (Chubbyserver, error) {
 	} else {
 		server.paxosnode = pnode
 	}
-	/*if lnode, err := lease.NewLeaseNode(nodeID, numNodes); err != nil {
-	      return nil, err
-	  } else {
-	      server.leasenode = lnode
-	  }*/
+	if lnode, err := lease.NewLeaseNode(nodeID, numNodes); err != nil {
+	    return nil, err
+	} else {
+	    server.leasenode = lnode
+	}
 
 	if err := rpc.RegisterName("ChubbyServer", chubbyrpc.Wrap(server)); err != nil {
 		return nil, err
@@ -142,6 +142,15 @@ func (server *chubbyserver) Release(args *chubbyrpc.ReleaseArgs, reply *chubbyrp
 	r := <-replyCh
 	reply.Status = r.Status
 	return nil
+}
+
+func (server *chubbyserver) CheckMaster(args *chubbyrpc.CheckArgs, reply *chubbyrpc.ChubbyReply) error {
+    if server.leasenode.CheckMaster() {
+        reply.Status = chubbyrpc.OK
+    } else {
+        reply.Status = chubbyrpc.FAIL
+    }
+    return nil
 }
 
 func (server *chubbyserver) getCommand(index int, c command.Command) {

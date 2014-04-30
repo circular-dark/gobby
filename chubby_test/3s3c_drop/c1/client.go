@@ -10,11 +10,12 @@ import (
 
 const (
 	cid = 0
+    numNodes = 3
 	key = "test"
 )
 
 func main() {
-	client, err := chubbyclient.NewClient(-1, cid)
+	client, err := chubbyclient.NewClient(numNodes, cid)
 	if err != nil {
 		fmt.Println("can't create chubby client")
 		return

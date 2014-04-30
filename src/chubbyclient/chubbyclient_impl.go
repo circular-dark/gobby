@@ -1,51 +1,27 @@
-// TODO: need to deal with corner cases: master failure in several timings
-
 package chubbyclient
 
 import (
 	"errors"
 	"github.com/gobby/src/config"
 	"github.com/gobby/src/rpc/chubbyrpc"
-	"math/rand"
 	"net/rpc"
 	"strconv"
+    "fmt"
 )
 
 type chubbyclient struct {
 	masterHostPort string
 	masterConn     *rpc.Client
+    numNodes       int
 }
 
 func NewClient(numNodes int, idx int) (Chubbyclient, error) {
-	client := new(chubbyclient)
-	//TODO:How to get master?
-	/*for _, hostport := range config.Hostports {
-	    if conn, err := rpc.DialHTTP("tcp", hostport); err == nil {
-	        args := new(chubbyrpc.GetMasterArgs)
-	        reply := new(chubbyrpc.GetMasterReply)
-	        if err = conn.Call("ChubbyServer.GetMasterHostport", args, reply); err == nil {
-	            client.masterHostPort = reply.Hostport
-	            break
-	        }
-	    }
-	}*/
-
-	if idx >= 0 {
-		client.masterHostPort = config.Nodes[idx].Address + ":" + strconv.Itoa(config.Nodes[idx].Port)
-
-		if conn, err := rpc.DialHTTP("tcp", client.masterHostPort); err == nil {
-			client.masterConn = conn
-		}
-		return client, nil
-	}
-
-	//Now random choose one
-	i := rand.Int31n(int32(numNodes))
-	client.masterHostPort = config.Nodes[i].Address + ":" + strconv.Itoa(config.Nodes[i].Port)
-
-	if conn, err := rpc.DialHTTP("tcp", client.masterHostPort); err == nil {
-		client.masterConn = conn
-	}
+	client := &chubbyclient {
+        masterHostPort: "",
+        masterConn: nil,
+        numNodes: numNodes,
+    }
+    client.findMaster()
 	return client, nil
 }
 
@@ -53,8 +29,10 @@ func (client *chubbyclient) Put(key, value string) error {
 	args := new(chubbyrpc.PutArgs)
 	args.Key = key
 	args.Value = value
-	//reply := new(chubbyrpc.PutReply)
 	reply := new(chubbyrpc.ChubbyReply)
+    for client.masterConn == nil {
+        client.findMaster()
+    }
 	if err := client.masterConn.Call("ChubbyServer.Put", args, reply); err == nil {
 		if reply.Status == chubbyrpc.OK {
 			return nil
@@ -62,6 +40,7 @@ func (client *chubbyclient) Put(key, value string) error {
 			return errors.New("Put error")
 		}
 	} else {
+        client.findMaster()
 		return err
 	}
 }
@@ -69,8 +48,10 @@ func (client *chubbyclient) Put(key, value string) error {
 func (client *chubbyclient) Get(key string) (string, error) {
 	args := new(chubbyrpc.GetArgs)
 	args.Key = key
-	//reply := new(chubbyrpc.GetReply)
 	reply := new(chubbyrpc.ChubbyReply)
+    for client.masterConn == nil {
+        client.findMaster()
+    }
 	if err := client.masterConn.Call("ChubbyServer.Get", args, reply); err == nil {
 		if reply.Status == chubbyrpc.OK {
 			return reply.Value, nil
@@ -78,6 +59,7 @@ func (client *chubbyclient) Get(key string) (string, error) {
 			return "", errors.New("Get error")
 		}
 	} else {
+        client.findMaster()
 		return "", err
 	}
 }
@@ -85,8 +67,10 @@ func (client *chubbyclient) Get(key string) (string, error) {
 func (client *chubbyclient) Acquire(key string) (string, error) {
 	args := new(chubbyrpc.AcquireArgs)
 	args.Key = key
-	//reply := new(chubbyrpc.AquireReply)
 	reply := new(chubbyrpc.ChubbyReply)
+    for client.masterConn == nil {
+        client.findMaster()
+    }
 	if err := client.masterConn.Call("ChubbyServer.Acquire", args, reply); err == nil {
 		if reply.Status == chubbyrpc.OK {
 			return reply.Value, nil
@@ -94,7 +78,8 @@ func (client *chubbyclient) Acquire(key string) (string, error) {
 			return reply.Value, errors.New("Acquire error")
 		}
 	} else {
-		return reply.Value, err
+        client.findMaster()
+		return "", err
 	}
 }
 
@@ -102,8 +87,10 @@ func (client *chubbyclient) Release(key, lockstamp string) error {
 	args := new(chubbyrpc.ReleaseArgs)
 	args.Key = key
 	args.Lockstamp = lockstamp
-	//reply := new(chubbyrpc.ReleaseReply)
 	reply := new(chubbyrpc.ChubbyReply)
+    for client.masterConn == nil {
+        client.findMaster()
+    }
 	if err := client.masterConn.Call("ChubbyServer.Release", args, reply); err == nil {
 		if reply.Status == chubbyrpc.OK {
 			return nil
@@ -111,6 +98,25 @@ func (client *chubbyclient) Release(key, lockstamp string) error {
 			return errors.New("Release error")
 		}
 	} else {
+        client.findMaster()
 		return err
 	}
+}
+
+func (client *chubbyclient) findMaster() {
+    for i := 0; i < client.numNodes; i++ {
+        curtry_hostport := config.Nodes[i].Address + ":" + strconv.Itoa(config.Nodes[i].Port)
+        if curtry_conn, err := rpc.DialHTTP("tcp", curtry_hostport); err == nil {
+            curtry_args := new(chubbyrpc.CheckArgs)
+            curtry_reply := new(chubbyrpc.ChubbyReply)
+            if err := curtry_conn.Call("ChubbyServer.CheckMaster", curtry_args, curtry_reply); err == nil {
+                if curtry_reply.Status == chubbyrpc.OK {
+                    client.masterHostPort = curtry_hostport
+                    client.masterConn = curtry_conn
+                    fmt.Printf("client find that %d is master\n", i)
+                    return
+                }
+            }
+        }
+    }
 }

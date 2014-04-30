@@ -2,3 +2,4 @@ haha/**/dumplog_*
 *.txt
 *.swp
 paxos_test/**/dumplog_*
+lease_test/**/log_node_*

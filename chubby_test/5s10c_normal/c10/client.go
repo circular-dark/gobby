@@ -16,7 +16,7 @@ const (
 )
 
 func main() {
-	client, err := chubbyclient.NewClient(numNode, -1)
+	client, err := chubbyclient.NewClient(numNode, cid)
 	if err != nil {
 		fmt.Println("can't create chubby client")
 		return

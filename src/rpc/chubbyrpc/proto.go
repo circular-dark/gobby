@@ -25,6 +25,10 @@ type ReleaseArgs struct {
 	Lockstamp string
 }
 
+type CheckArgs struct {
+
+}
+
 type ChubbyReply struct {
 	Status Status
 	Value  string

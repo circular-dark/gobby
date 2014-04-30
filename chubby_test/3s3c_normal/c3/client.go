@@ -5,15 +5,17 @@ import (
 	"github.com/gobby/src/chubbyclient"
 	"strconv"
 	"time"
+    "math/rand"
 )
 
 const (
 	cid = 2
+    numNodes = 3
 	key = "test"
 )
 
 func main() {
-	client, err := chubbyclient.NewClient(-1, cid)
+	client, err := chubbyclient.NewClient(numNodes, cid)
 	if err != nil {
 		fmt.Println("can't create chubby client")
 		return
@@ -26,12 +28,12 @@ func main() {
 	time.Sleep(3 * time.Second)
 
 	for i := 0; i < 50; i++ {
-		fmt.Printf("in iteration %d\n", i)
 		var lstm string
 		var err error
 		for {
+			fmt.Printf("client %d tries to get the lock\n", cid)
 			if lstm, err = client.Acquire(key); err != nil {
-				/* time.Sleep(time.Second) */
+				time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
 				continue
 			}
 			fmt.Printf("client %d gets the lock\n", cid)
