@@ -39,7 +39,6 @@ func main() {
 			fmt.Printf("client %d gets the lock\n", cid)
 			val, _ := client.Get(key)
 			num, _ := strconv.Atoi(val)
-			fmt.Printf("the value is now %d\n", num)
 			newval := strconv.Itoa(num + 1)
 			client.Put(key, newval)
 			fmt.Printf("client %d put %s\n", cid, newval)

@@ -15,8 +15,8 @@ import (
 
 const (
     PERIORD_LEN = 1000 // number of milliseconds in a period
-	LEASE_LEN   = 8    // number of periods in a lease length
-	REFRESH_LEN = 4    // number of remaining master periods when trying to renew
+	LEASE_LEN   = 5    // number of periods in a lease length
+	REFRESH_LEN = 2    // number of remaining master periods when trying to renew
 )
 
 var (

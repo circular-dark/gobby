@@ -16,7 +16,7 @@ const (
 )
 
 func main() {
-	client, err := chubbyclient.NewClient(numNode, -1)
+	client, err := chubbyclient.NewClient(numNode, cid)
 	if err != nil {
 		fmt.Println("can't create chubby client")
 		return
@@ -39,10 +39,9 @@ func main() {
 			fmt.Printf("client %d gets the lock\n", cid)
 			val, _ := client.Get(key)
 			num, _ := strconv.Atoi(val)
-			fmt.Printf("the value is now %d\n", num)
 			newval := strconv.Itoa(num + 1)
 			client.Put(key, newval)
-			fmt.Printf("client %d put %s\n", cid, newval)
+			fmt.Printf("client %d put %s:%s\n", cid, key, newval)
 			if err = client.Release(key, lstm); err == nil {
 				fmt.Printf("client %d releases the lock\n", cid)
 				break

@@ -13,13 +13,15 @@ type chubbyclient struct {
 	masterHostPort string
 	masterConn     *rpc.Client
     numNodes       int
+    nodeID         int
 }
 
-func NewClient(numNodes int, idx int) (Chubbyclient, error) {
+func NewClient(numNodes int, nodeID int) (Chubbyclient, error) {
 	client := &chubbyclient {
         masterHostPort: "",
         masterConn: nil,
         numNodes: numNodes,
+        nodeID: nodeID,
     }
     client.findMaster()
 	return client, nil
@@ -31,6 +33,11 @@ func (client *chubbyclient) Put(key, value string) error {
 	args.Value = value
 	reply := new(chubbyrpc.ChubbyReply)
     for client.masterConn == nil {
+        client.findMaster()
+    }
+    curtry_args := new(chubbyrpc.CheckArgs)
+    curtry_reply := new(chubbyrpc.ChubbyReply)
+    if err := client.masterConn.Call("ChubbyServer.CheckMaster", curtry_args, curtry_reply); err != nil || curtry_reply.Status != chubbyrpc.OK {
         client.findMaster()
     }
 	if err := client.masterConn.Call("ChubbyServer.Put", args, reply); err == nil {
@@ -52,6 +59,11 @@ func (client *chubbyclient) Get(key string) (string, error) {
     for client.masterConn == nil {
         client.findMaster()
     }
+    curtry_args := new(chubbyrpc.CheckArgs)
+    curtry_reply := new(chubbyrpc.ChubbyReply)
+    if err := client.masterConn.Call("ChubbyServer.CheckMaster", curtry_args, curtry_reply); err != nil || curtry_reply.Status != chubbyrpc.OK {
+        client.findMaster()
+    }
 	if err := client.masterConn.Call("ChubbyServer.Get", args, reply); err == nil {
 		if reply.Status == chubbyrpc.OK {
 			return reply.Value, nil
@@ -69,6 +81,11 @@ func (client *chubbyclient) Acquire(key string) (string, error) {
 	args.Key = key
 	reply := new(chubbyrpc.ChubbyReply)
     for client.masterConn == nil {
+        client.findMaster()
+    }
+    curtry_args := new(chubbyrpc.CheckArgs)
+    curtry_reply := new(chubbyrpc.ChubbyReply)
+    if err := client.masterConn.Call("ChubbyServer.CheckMaster", curtry_args, curtry_reply); err != nil || curtry_reply.Status != chubbyrpc.OK {
         client.findMaster()
     }
 	if err := client.masterConn.Call("ChubbyServer.Acquire", args, reply); err == nil {
@@ -89,6 +106,11 @@ func (client *chubbyclient) Release(key, lockstamp string) error {
 	args.Lockstamp = lockstamp
 	reply := new(chubbyrpc.ChubbyReply)
     for client.masterConn == nil {
+        client.findMaster()
+    }
+    curtry_args := new(chubbyrpc.CheckArgs)
+    curtry_reply := new(chubbyrpc.ChubbyReply)
+    if err := client.masterConn.Call("ChubbyServer.CheckMaster", curtry_args, curtry_reply); err != nil || curtry_reply.Status != chubbyrpc.OK {
         client.findMaster()
     }
 	if err := client.masterConn.Call("ChubbyServer.Release", args, reply); err == nil {
@@ -113,7 +135,7 @@ func (client *chubbyclient) findMaster() {
                 if curtry_reply.Status == chubbyrpc.OK {
                     client.masterHostPort = curtry_hostport
                     client.masterConn = curtry_conn
-                    fmt.Printf("client find that %d is master\n", i)
+                    fmt.Printf("client %d finds that %d is master\n", client.nodeID, i)
                     return
                 }
             }
