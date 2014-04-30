@@ -17,7 +17,7 @@ const (
 	numNodes = 5
 )
 
-var done = make(chan struct{}, 15000)
+var done = make(chan struct{})
 
 func fakecallback(index int, c command.Command) {
 	fmt.Printf("\n%d's index %d is %s\n", nid, index, c.ToString())
@@ -25,7 +25,6 @@ func fakecallback(index int, c command.Command) {
 }
 
 func main() {
-	fmt.Printf("node %d starts\n", nid)
 	node, err := paxos.NewPaxosNode(nid, numNodes, fakecallback)
 	if err != nil {
 		fmt.Println("Cannot start node.\n")
@@ -41,17 +40,44 @@ func main() {
 	rpc.HandleHTTP()
 	go http.Serve(listener, nil)
 
-	time.Sleep(5 * time.Second)
-	for i := 0; i < 2000; i++ {
-		c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put, i, ""}
-		node.Replicate(&c)
+	fmt.Println("Pause node.\n")
+	err = node.Pause()
+	if err != nil {
+		fmt.Println("Cannot Pause node.\n")
+		fmt.Println(err)
+		return
 	}
-	for res := 0; res < 10000; res++ {
+	time.Sleep(5 * time.Second)
+	go func() {
+		time.Sleep(10 * time.Second)
+		fmt.Println("Resume node.\n")
+		err = node.Resume()
+		if err != nil {
+			fmt.Println("Cannot Resume node.\n")
+			fmt.Println(err)
+			return
+		}
+		c := command.Command{strconv.Itoa(nid), strconv.Itoa(0), command.Put, 100, ""}
+		node.Replicate(&c)
+		c = command.Command{strconv.Itoa(nid), strconv.Itoa(1), command.Put, 101, ""}
+		node.Replicate(&c)
+	}()
+
+	res := 0
+	for res < 22 {
 		_, ok := <-done
-		if !ok {
+		if ok {
+			res++
+		} else {
 			break
 		}
 	}
+
+	if res == 22 {
+		fmt.Printf("\n%d receive all commands\n", nid)
+	} else {
+		fmt.Printf("%d Just break %d!!!!!\n", nid, res)
+	}
 	node.DumpLog()
-	fmt.Printf("node %d closes\n", nid)
+	time.Sleep(20 * time.Second)
 }

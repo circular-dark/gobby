@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	nid      = 0
+	nid      = 4
 	numNodes = 5
 )
 
-var done = make(chan struct{}, 15000)
+var done = make(chan struct{})
 
 func fakecallback(index int, c command.Command) {
 	fmt.Printf("\n%d's index %d is %s\n", nid, index, c.ToString())
@@ -25,7 +25,6 @@ func fakecallback(index int, c command.Command) {
 }
 
 func main() {
-	fmt.Printf("node %d starts\n", nid)
 	node, err := paxos.NewPaxosNode(nid, numNodes, fakecallback)
 	if err != nil {
 		fmt.Println("Cannot start node.\n")
@@ -42,16 +41,27 @@ func main() {
 	go http.Serve(listener, nil)
 
 	time.Sleep(5 * time.Second)
-	for i := 0; i < 2000; i++ {
-		c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put, i, ""}
-		node.Replicate(&c)
-	}
-	for res := 0; res < 10000; res++ {
+	go func() {
+		for i := 0; i < 5; i++ {
+			c := command.Command{strconv.Itoa(nid), strconv.Itoa(i), command.Put, i, ""}
+			node.Replicate(&c)
+		}
+	}()
+
+	res := 0
+	for res < 22 {
 		_, ok := <-done
-		if !ok {
+		if ok {
+			res++
+		} else {
 			break
 		}
 	}
+
+	if res == 22 {
+		fmt.Printf("\n%d receive all commands\n", nid)
+	} else {
+		fmt.Printf("%d Just break %d!!!!!\n", nid, res)
+	}
 	node.DumpLog()
-	fmt.Printf("node %d closes\n", nid)
 }
