@@ -144,7 +144,7 @@ func (client *chubbyclient) Release(key, lockstamp string) error {
 func (client *chubbyclient) Watch(key string) error {
 	args := new(chubbyrpc.WatchArgs)
 	args.Key = key
-	args.HostAddr = client.sock.LocalAddr().String()
+	args.HostAddr = client.Sock.LocalAddr().String()
 	reply := new(chubbyrpc.ChubbyReply)
 	if err := client.masterConn.Call("ChubbyServer.Watch", args, reply); err == nil {
 		if reply.Status == chubbyrpc.OK {
