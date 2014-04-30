@@ -1,8 +1,6 @@
 package gobbyserver
 
 import (
-	"strconv"
-	"sync"
 	"fmt"
 	"github.com/gobby/src/command"
 	"github.com/gobby/src/config"
@@ -11,6 +9,8 @@ import (
 	"github.com/gobby/src/rpc/gobbyrpc"
 	"net"
 	"net/rpc"
+	"strconv"
+	"sync"
 )
 
 type kstate struct {
@@ -24,8 +24,8 @@ type gobbyserver struct {
 	addrport   string
 	store      map[string]*kstate
 	commandLog []*command.Command
-	nextIndex  int                                 // next index of command that should be executed
-	nextCID    int                                 // next command ID that should be assigned
+	nextIndex  int                               // next index of command that should be executed
+	nextCID    int                               // next command ID that should be assigned
 	replyChs   map[int]chan *gobbyrpc.GobbyReply // maps command id to channels that block RPC calls
 	lock       sync.Mutex
 	paxosnode  paxos.PaxosNode
