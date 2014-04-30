@@ -4,9 +4,11 @@ package chubbyclient
 
 import (
 	"errors"
+	"fmt"
 	"github.com/gobby/src/config"
 	"github.com/gobby/src/rpc/chubbyrpc"
 	"math/rand"
+	"net"
 	"net/rpc"
 	"strconv"
 )
@@ -14,6 +16,7 @@ import (
 type chubbyclient struct {
 	masterHostPort string
 	masterConn     *rpc.Client
+	Sock           *net.UDPConn
 }
 
 func NewClient(numNodes int, idx int) (Chubbyclient, error) {
@@ -30,6 +33,27 @@ func NewClient(numNodes int, idx int) (Chubbyclient, error) {
 	    }
 	}*/
 
+	//The naive way to handle watch notification.
+	for _, n := range config.Clients {
+		addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", n.Port))
+		sock, err := net.ListenUDP("udp", addr)
+		if err == nil {
+			client.Sock = sock
+			break
+		}
+	}
+	go func(c *net.UDPConn) {
+		var buf []byte = make([]byte, 1500)
+		for {
+			blen, err := c.Read(buf)
+			if err == nil {
+				fmt.Println(string(buf[:blen]))
+			} else {
+				fmt.Println(err)
+			}
+		}
+	}(client.Sock)
+
 	if idx >= 0 {
 		client.masterHostPort = config.Nodes[idx].Address + ":" + strconv.Itoa(config.Nodes[idx].Port)
 
@@ -45,6 +69,8 @@ func NewClient(numNodes int, idx int) (Chubbyclient, error) {
 
 	if conn, err := rpc.DialHTTP("tcp", client.masterHostPort); err == nil {
 		client.masterConn = conn
+	} else {
+		fmt.Println(err)
 	}
 	return client, nil
 }
@@ -105,6 +131,22 @@ func (client *chubbyclient) Release(key, lockstamp string) error {
 	//reply := new(chubbyrpc.ReleaseReply)
 	reply := new(chubbyrpc.ChubbyReply)
 	if err := client.masterConn.Call("ChubbyServer.Release", args, reply); err == nil {
+		if reply.Status == chubbyrpc.OK {
+			return nil
+		} else {
+			return errors.New("Release error")
+		}
+	} else {
+		return err
+	}
+}
+
+func (client *chubbyclient) Watch(key string) error {
+	args := new(chubbyrpc.WatchArgs)
+	args.Key = key
+	args.HostAddr = client.sock.LocalAddr().String()
+	reply := new(chubbyrpc.ChubbyReply)
+	if err := client.masterConn.Call("ChubbyServer.Watch", args, reply); err == nil {
 		if reply.Status == chubbyrpc.OK {
 			return nil
 		} else {

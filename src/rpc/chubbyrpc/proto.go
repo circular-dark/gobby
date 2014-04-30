@@ -25,6 +25,11 @@ type ReleaseArgs struct {
 	Lockstamp string
 }
 
+type WatchArgs struct {
+	Key	  string
+	HostAddr  string
+}
+
 type ChubbyReply struct {
 	Status Status
 	Value  string

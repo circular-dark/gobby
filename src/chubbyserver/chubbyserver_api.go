@@ -9,4 +9,5 @@ type Chubbyserver interface {
 	Get(args *chubbyrpc.GetArgs, reply *chubbyrpc.ChubbyReply) error
 	Acquire(args *chubbyrpc.AcquireArgs, reply *chubbyrpc.ChubbyReply) error
 	Release(args *chubbyrpc.ReleaseArgs, reply *chubbyrpc.ChubbyReply) error
+	Watch(args *chubbyrpc.WatchArgs, reply *chubbyrpc.ChubbyReply) error
 }

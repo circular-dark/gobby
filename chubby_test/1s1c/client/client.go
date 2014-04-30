@@ -3,10 +3,11 @@ package main
 import (
 	"fmt"
 	"github.com/gobby/src/chubbyclient"
+	"time"
 )
 
 func main() {
-	client, err := chubbyclient.NewClient(-1, 1)
+	client, err := chubbyclient.NewClient(-1, 0)
 	if err != nil {
 		fmt.Println("wrong")
 	}
@@ -23,5 +24,10 @@ func main() {
 	ts, err := client.Acquire("test")
 	fmt.Printf("Client Acquire test, get %s\n", ts)
 	fmt.Println("Client Release test")
-	client.Release("test")
+	client.Release("test", ts)
+	client.Watch("test")
+
+	time.Sleep(2 * time.Second)
+	go client.Put("test", "hahaha")
+	time.Sleep(2 * time.Second)
 }
