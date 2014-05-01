@@ -49,19 +49,18 @@ the test. Some test cases might not terminate by themselves, and need to kill th
 manually. We offer scripts to kill all running nodes for mac or linux.
 
 gobby_test/
-  1s1c                  ---- one gobby server and one client, show basic functions.
+  1s1c                  ---- one gobby server and one client, basic functions.
   3s1c                  ---- three gobby servers and one client.
   3s3c_normal           ---- three gobby servers and three clients. Three clients 
 			     want to update a shared variable stored in the gobby
 			     storage system, in a atomical way.
-  3s3c_delay            ---- three gobby servers and three clients, and the messages
+  3s3c_delay            ---- three gobby servers and three clients, and the pkg
 			     transfered between paxos nodes are randomly delayed.
-  3s3c_drop             ---- three gobby servers and three clients, and the messages
+  3s3c_drop             ---- three gobby servers and three clients, and the pkg 
 			     transfered between paxos nodes are randomly dropped.
   5s10c_normal          ---- five gobby servers and ten clients. The task is the
-			     same as 3s3c_normal
-  5s10c_drop            ---- the same as the above one, but the network between paxos
-			     nodes may drop pacakges.
+			     same as 3s3c_normal.
+  5s10c_drop            ---- the same as the above one, but drop network pkg.
 
 paxos_test/
   X_normal_test         ---- launch X paxos nodes, and each paxos node replicates
@@ -70,13 +69,13 @@ paxos_test/
 			     Then other nodes try to replicate their own commands.
 			     After other nodes have consensus on these commands,
 			     let the node re-connect the other nodes and try to
-			     replicate its command. The node can learn all commands
+			     replicate a command. The node can learn all commands
 			     from other nodes.
   X_pause_test1         ---- launch X paxos nodes, and cut off one node's network.
 			     Then other nodes try to replicate their own commands.
 			     After other nodes have consensus on these commands,
 			     let the node re-connect the other nodes and one other
-			     node tries to replicate a command. The node will learn
+			     node tries to replicate a command. The node learns
 			     (or say catch up) all commands from other nodes.
   X_random_delay_test   ---- almost the same as X_normal_test. The only difference
 			     is the network may randomly delay messages.
@@ -92,9 +91,9 @@ paxos_test/
 lease_test/
   X_normal		---- launch X lease nodes, and one of them can be elected
 			     as the master. If we kill the master, a new master 
-			     will be elected soon, as long as a majority of origianl
-			     nodes survive. If we restart some node, it will join 
-			     the electoin process.
+			     will be elected soon, as long as a majority of nodes
+			     survive. If we restart some node, it will join the
+			     electoin process.
   X_drop                ---- almost the same as X_normal, but may drop messages
 
 
