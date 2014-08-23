@@ -11,6 +11,7 @@ const (
 	Get
 	Acquire
 	Release
+	Watch
 	NOP
 )
 
@@ -33,6 +34,8 @@ func (c Command) ToString() string {
 		s = "[Acquire"
 	case Release:
 		s = "[Release"
+	case Watch:
+		s = "[Watch"
 	case NOP:
 		s = "[NOP"
 	}

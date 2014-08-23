@@ -1,14 +1,11 @@
 package lease
 
 import (
-	"fmt"
 	"github.com/gobby/src/config"
 	"github.com/gobby/src/rpc/leaserpc"
 	"github.com/gobby/src/rpc/rpcwrapper"
 	"io/ioutil"
 	"log"
-	"net"
-	"net/http"
 	"net/rpc"
 	"os"
 	"strconv"
@@ -17,13 +14,16 @@ import (
 )
 
 const (
-	LEASE_LEN   = 30 // 30 * 100 milliseconds
-	REFRESH_LEN = 5  // 10 * 100 milliseconds
+	PERIORD_LEN = 1000 // number of milliseconds in a period
+	LEASE_LEN   = 5    // number of periods in a lease length
+	REFRESH_LEN = 2    // number of remaining master periods when trying to renew
 )
 
 var (
-	LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
-	/* LOGV = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile) */
+	/* LOGV = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile) */
+	LOGV = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	LOGE = log.New(os.Stdout, "VERBOSE", log.Lmicroseconds|log.Lshortfile)
+	/* LOGE = log.New(ioutil.Discard, "VERBOSE", log.Lmicroseconds|log.Lshortfile) */
 	_ = ioutil.Discard
 )
 
@@ -39,8 +39,9 @@ type leaseNode struct {
 	nextBallot             int
 	leaseMutex             sync.Mutex
 	isMaster               bool
-	leaseLen               int // remaining lease length period
-	renewLeaseLen          int // length of the renewing lease
+	masterLeaseLen         int // remaining master lease length period
+	renewLeaseLen          int // remaining renew master lease length period
+	acceptLeaseLen         int // remaining accept lease length period
 	Nh                     int
 	Na                     int
 }
@@ -48,16 +49,18 @@ type leaseNode struct {
 //Current setting: all settings are static
 func NewLeaseNode(nodeID int, numNodes int) (LeaseNode, error) {
 	node := &leaseNode{
-		nodeID:     nodeID,
-		port:       config.Nodes[nodeID].Port,
-		numNodes:   numNodes,
-		addrport:   config.Nodes[nodeID].Address + ":" + strconv.Itoa(config.Nodes[nodeID].Port),
-		isMaster:   false,
-		nextBallot: nodeID,
-		leaseLen:   0,
-		Nh:         0,
-		Na:         0,
-		peers:      make([]Node, numNodes),
+		nodeID:         nodeID,
+		port:           config.Nodes[nodeID].Port,
+		numNodes:       numNodes,
+		addrport:       config.Nodes[nodeID].Address + ":" + strconv.Itoa(config.Nodes[nodeID].Port),
+		isMaster:       false,
+		nextBallot:     nodeID,
+		masterLeaseLen: 0,
+		renewLeaseLen:  0,
+		acceptLeaseLen: 0,
+		Nh:             0,
+		Na:             0,
+		peers:          make([]Node, numNodes),
 	}
 
 	for i := 0; i < numNodes; i++ {
@@ -65,30 +68,27 @@ func NewLeaseNode(nodeID int, numNodes int) (LeaseNode, error) {
 		node.peers[i].NodeID = i
 	}
 
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", node.port))
-	if err != nil {
+	if err := rpc.RegisterName("LeaseNode", leaserpc.Wrap(node)); err != nil {
 		return nil, err
 	}
-	if err = rpc.RegisterName("LeaseNode", leaserpc.Wrap(node)); err != nil {
-		return nil, err
-	}
-	rpc.HandleHTTP()
-	go http.Serve(listener, nil)
 	go node.leaseManager()
 
 	return node, nil
 }
 
 func (ln *leaseNode) Prepare(args *leaserpc.Args, reply *leaserpc.Reply) error {
+	LOGV.Printf("node %d receives prepare %d\n", ln.nodeID, args.N)
 	ln.leaseMutex.Lock()
 	if args.N < ln.Nh {
 		reply.Status = leaserpc.Reject
 	} else {
 		ln.Nh = args.N
-		if ln.leaseLen > 0 {
+		if ln.masterLeaseLen > 0 || ln.acceptLeaseLen > 0 {
 			reply.Status = leaserpc.Reject
+			LOGV.Printf("node %d rejects prepare %d\n", ln.nodeID, args.N)
 		} else {
 			reply.Status = leaserpc.OK
+			LOGV.Printf("node %d accepts prepare %d\n", ln.nodeID, args.N)
 		}
 	}
 	ln.leaseMutex.Unlock()
@@ -96,14 +96,17 @@ func (ln *leaseNode) Prepare(args *leaserpc.Args, reply *leaserpc.Reply) error {
 }
 
 func (ln *leaseNode) Accept(args *leaserpc.Args, reply *leaserpc.Reply) error {
+	LOGV.Printf("node %d receives accept %d\n", ln.nodeID, args.N)
 	ln.leaseMutex.Lock()
 	if args.N < ln.Nh {
 		reply.Status = leaserpc.Reject
+		LOGV.Printf("node %d rejects accept %d\n", ln.nodeID, args.N)
 	} else {
 		ln.Nh = args.N
 		ln.Na = args.N
-		ln.leaseLen = LEASE_LEN
+		ln.acceptLeaseLen = LEASE_LEN
 		reply.Status = leaserpc.OK
+		LOGV.Printf("node %d accepts accept %d\n", ln.nodeID, args.N)
 	}
 	ln.leaseMutex.Unlock()
 	return nil
@@ -115,7 +118,6 @@ func (ln *leaseNode) dofunction(args *leaserpc.Args, reply *leaserpc.Reply, func
 	for _, n := range ln.peers {
 		go func(peernode Node) {
 			if peernode.HostPort == ln.addrport {
-				//LOGV.Printf("node %d call locally %s\n", ln.nodeID, funcname)
 				r := leaserpc.Reply{}
 				switch {
 				case funcname == "LeaseNode.Prepare":
@@ -129,7 +131,6 @@ func (ln *leaseNode) dofunction(args *leaserpc.Args, reply *leaserpc.Reply, func
 				}
 				replychan <- &r
 			} else {
-				//LOGV.Printf("node %d call remote %s\n", ln.nodeID, funcname)
 				r := leaserpc.Reply{}
 				peer, err := rpcwrapper.DialHTTP("tcp", peernode.HostPort)
 				if err != nil {
@@ -170,53 +171,85 @@ func (ln *leaseNode) dofunction(args *leaserpc.Args, reply *leaserpc.Reply, func
 }
 
 func (ln *leaseNode) DoPrepare(args *leaserpc.Args, reply *leaserpc.Reply) error {
-	return ln.dofunction(args, reply, "LeaseNode.Prepare")
+	LOGV.Printf("node %d sends out prepare %d\n", ln.nodeID, args.N)
+	err := ln.dofunction(args, reply, "LeaseNode.Prepare")
+	if reply.Status == leaserpc.OK {
+		LOGV.Printf("node %d's prepare %d SUCCEED\n", ln.nodeID, args.N)
+	} else {
+		LOGV.Printf("node %d's prepare %d FAIL\n", ln.nodeID, args.N)
+	}
+	return err
 }
 
 func (ln *leaseNode) DoAccept(args *leaserpc.Args, reply *leaserpc.Reply) error {
-	return ln.dofunction(args, reply, "LeaseNode.Accept")
+	LOGV.Printf("node %d sends out accept %d\n", ln.nodeID, args.N)
+	err := ln.dofunction(args, reply, "LeaseNode.Accept")
+	if reply.Status == leaserpc.OK {
+		LOGV.Printf("node %d's accept %d SUCCEED\n", ln.nodeID, args.N)
+	} else {
+		LOGV.Printf("node %d's accept %d FAIL\n", ln.nodeID, args.N)
+	}
+	return err
 }
 
 func (ln *leaseNode) RenewPrepare(args *leaserpc.Args, reply *leaserpc.Reply) error {
+	LOGV.Printf("node %d receives renewprepare %d\n", ln.nodeID, args.N)
 	ln.leaseMutex.Lock()
 	if ln.Nh < args.N {
 		ln.Nh = args.N
 	}
-	if ln.Na == args.N || ln.leaseLen == 0 {
+	if ln.Na == args.N || (ln.acceptLeaseLen == 0 && ln.masterLeaseLen == 0) {
 		reply.Status = leaserpc.OK
+		LOGV.Printf("node %d accepts renewprepare %d\n", ln.nodeID, args.N)
 	} else {
 		reply.Status = leaserpc.Reject
+		LOGV.Printf("node %d rejects renewprepare %d\n", ln.nodeID, args.N)
 	}
 	ln.leaseMutex.Unlock()
 	return nil
 }
 
 func (ln *leaseNode) RenewAccept(args *leaserpc.Args, reply *leaserpc.Reply) error {
+	LOGV.Printf("node %d receives renewaccept %d\n", ln.nodeID, args.N)
 	ln.leaseMutex.Lock()
 	if ln.Nh < args.N {
 		ln.Nh = args.N
 	}
-	if ln.Na == args.N || ln.leaseLen == 0 {
-		ln.Na = args.N
-		ln.leaseLen = LEASE_LEN
+	if ln.Na == args.N || (ln.acceptLeaseLen == 0 && ln.masterLeaseLen == 0) {
+		ln.acceptLeaseLen = LEASE_LEN
 		reply.Status = leaserpc.OK
+		LOGV.Printf("node %d accepts renewaccept %d\n", ln.nodeID, args.N)
 	} else {
 		reply.Status = leaserpc.Reject
+		LOGV.Printf("node %d rejects renewaccept %d\n", ln.nodeID, args.N)
 	}
 	ln.leaseMutex.Unlock()
 	return nil
 }
 
 func (ln *leaseNode) DoRenewPrepare(args *leaserpc.Args, reply *leaserpc.Reply) error {
-	return ln.dofunction(args, reply, "LeaseNode.RenewPrepare")
+	LOGV.Printf("node %d sends out renewprepare %d\n", ln.nodeID, args.N)
+	err := ln.dofunction(args, reply, "LeaseNode.RenewPrepare")
+	if reply.Status == leaserpc.OK {
+		LOGV.Printf("node %d's renewprepare %d SUCCEED\n", ln.nodeID, args.N)
+	} else {
+		LOGV.Printf("node %d's renewprepare %d FAIL\n", ln.nodeID, args.N)
+	}
+	return err
 }
 
 func (ln *leaseNode) DoRenewAccept(args *leaserpc.Args, reply *leaserpc.Reply) error {
-	return ln.dofunction(args, reply, "LeaseNode.RenewAccept")
+	LOGV.Printf("node %d sends out renewaccept %d\n", ln.nodeID, args.N)
+	err := ln.dofunction(args, reply, "LeaseNode.RenewAccept")
+	if reply.Status == leaserpc.OK {
+		LOGV.Printf("node %d's renewaccept %d SUCCEED\n", ln.nodeID, args.N)
+	} else {
+		LOGV.Printf("node %d's renewaccept %d FAIL\n", ln.nodeID, args.N)
+	}
+	return err
 }
 
 func (ln *leaseNode) renewLease() {
-	LOGV.Printf("node %d is renewing the lease\n", ln.nodeID)
 	// Prepare
 	ln.leaseMutex.Lock()
 	prepareArgs := leaserpc.Args{
@@ -232,7 +265,7 @@ func (ln *leaseNode) renewLease() {
 
 	// Accept
 	ln.leaseMutex.Lock()
-	ln.renewLeaseLen = LEASE_LEN - 1 // for safe now, shorten the length a bit
+	ln.renewLeaseLen = LEASE_LEN - 2 // for safe now, shorten the length a bit
 	ln.leaseMutex.Unlock()
 	acceptArgs := leaserpc.Args{
 		N: prepareArgs.N,
@@ -245,15 +278,16 @@ func (ln *leaseNode) renewLease() {
 	}
 
 	ln.leaseMutex.Lock()
-	ln.isMaster = true
-	ln.leaseLen = ln.renewLeaseLen
+	if ln.renewLeaseLen > 0 {
+		ln.isMaster = true
+		ln.masterLeaseLen = ln.renewLeaseLen
+		LOGE.Printf("node %d IS AGAIN THE MASTER NOW!\n", ln.nodeID)
+	}
 	ln.Na = acceptArgs.N
 	ln.leaseMutex.Unlock()
-	LOGV.Printf("node %d again is THE MASTER NOW!\n", ln.nodeID)
 }
 
 func (ln *leaseNode) getLease() {
-	LOGV.Printf("node %d is trying to get the lease\n", ln.nodeID)
 	// Prepare
 	ln.leaseMutex.Lock()
 	for ln.nextBallot <= ln.Nh {
@@ -272,7 +306,7 @@ func (ln *leaseNode) getLease() {
 
 	// Accept
 	ln.leaseMutex.Lock()
-	ln.leaseLen = LEASE_LEN - 1 // for safe now, shorten the length a bit
+	ln.masterLeaseLen = LEASE_LEN - 2 // for safe now, shorten the length a bit
 	ln.leaseMutex.Unlock()
 	acceptArgs := leaserpc.Args{
 		N: prepareArgs.N,
@@ -285,41 +319,48 @@ func (ln *leaseNode) getLease() {
 	}
 
 	ln.leaseMutex.Lock()
-	ln.isMaster = true
+	if ln.masterLeaseLen > 0 {
+		ln.isMaster = true
+		LOGE.Printf("node %d IS THE MASTER NOW!\n", ln.nodeID)
+	}
 	ln.Na = acceptArgs.N
 	ln.leaseMutex.Unlock()
-	LOGV.Printf("node %d IS THE MASTER NOW!\n", ln.nodeID)
 }
 
 func (ln *leaseNode) CheckMaster() bool {
 	ln.leaseMutex.Lock()
-	res := (ln.isMaster && ln.leaseLen > 0)
+	res := (ln.isMaster && ln.masterLeaseLen > 0)
 	ln.leaseMutex.Unlock()
 	return res
 }
 
 func (ln *leaseNode) leaseManager() {
-	// manager runs for every 50 millisecond
-	t := time.NewTicker(100 * time.Millisecond)
+	t := time.NewTicker(PERIORD_LEN * time.Millisecond)
 	for {
 		select {
 		case <-t.C:
+			LOGV.Printf("node %d: master %d, accepts %d\n", ln.nodeID, ln.masterLeaseLen, ln.acceptLeaseLen)
 			willget := false
 			willrenew := false
 			ln.leaseMutex.Lock()
 			if ln.renewLeaseLen > 0 {
 				ln.renewLeaseLen--
 			}
-			if ln.leaseLen > 0 {
-				ln.leaseLen--
-				if ln.leaseLen == 0 && ln.isMaster {
+			if ln.masterLeaseLen > 0 {
+				ln.masterLeaseLen--
+			}
+			if ln.acceptLeaseLen > 0 {
+				ln.acceptLeaseLen--
+			}
+			if ln.isMaster {
+				if ln.masterLeaseLen == 0 {
 					ln.isMaster = false
-					willget = true
-				}
-				if ln.leaseLen <= REFRESH_LEN && ln.isMaster {
+					LOGE.Printf("node %d IS  NOT  THE MASTER NOW!\n", ln.nodeID)
+				} else if ln.masterLeaseLen < REFRESH_LEN {
 					willrenew = true
 				}
-			} else {
+			}
+			if ln.acceptLeaseLen == 0 {
 				willget = true
 			}
 			ln.leaseMutex.Unlock()
